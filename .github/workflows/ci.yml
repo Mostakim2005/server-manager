@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Prepare CI log directory
+        run: mkdir -p .ci-logs build
+
+      - name: 1. Download Go dependencies
+        run: |
+          set -o pipefail
+          go mod tidy 2>&1 | tee .ci-logs/01-install.log
+          git diff --exit-code go.mod go.sum 2>&1 | tee -a .ci-logs/01-install.log
+
+      - name: 2. Format & Vet
+        run: |
+          set -o pipefail
+          UNFMT=$(gofmt -l cmd internal)
+          if [ -n "$UNFMT" ]; then
+            echo "Unformatted Go files:" | tee .ci-logs/02-format-lint.log
+            echo "$UNFMT" | tee -a .ci-logs/02-format-lint.log
+            exit 1
+          fi
+          go vet ./cmd/... ./internal/... 2>&1 | tee .ci-logs/02-format-lint.log
+
+      - name: 3. Unit & Integration Tests (Race Detector)
+        run: |
+          set -o pipefail
+          go test -race -v ./cmd/... ./internal/... 2>&1 | tee .ci-logs/03-tests.log
+
+      - name: 4. Build Portable Windows Binaries
+        run: |
+          set -o pipefail
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w -H=windowsgui" -o build/ServerManager.exe ./cmd/ServerManager 2>&1 | tee .ci-logs/04-build-windows.log
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o build/server-manager.exe ./cmd/server-manager 2>&1 | tee -a .ci-logs/04-build-windows.log
+          ls -lh build/*.exe | tee -a .ci-logs/04-build-windows.log
+
+      - name: 5. Structure, Doc Parity & Asset Checks
+        run: |
+          set -o pipefail
+          python3 - <<'PY' 2>&1 | tee .ci-logs/05-structure-docs.log
+          import pathlib, re
+          docs = sorted(pathlib.Path("docs").rglob("*.md"))
+          assert docs, "docs/ must contain Markdown docs"
+          header_re = re.compile(r"^### \[(FEATURE|WISHLIST|SUBSYSTEM|FLOW|DECISION|TRAP): [^\]]+\]")
+          for d in docs:
+              raw = d.read_bytes()
+              assert not raw.startswith(b"\xef\xbb\xbf"), f"{d} has UTF-8 BOM"
+              lines = raw.decode("utf-8").splitlines()
+              for idx, line in enumerate(lines):
+                  if header_re.match(line):
+                      assert idx + 1 < len(lines) and lines[idx + 1].startswith("> **1-Line Summary:**"), (
+                          f"{d}:{idx+1} missing immediate '> **1-Line Summary:**'"
+                      )
+          assert pathlib.Path("internal/branding/logo.svg").is_file(), "Missing logo.svg"
+          assert pathlib.Path("internal/webui/static/index.html").is_file(), "Missing embedded UI index.html"
+          print(f"Verified {len(docs)} doc files and embedded assets cleanly.")
+          PY
+
+      - name: Generate patch-ready CI failure report
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import datetime, os, pathlib, re, subprocess
+          repo_slug = os.environ.get("GITHUB_REPOSITORY", "Mostakim2005/server-manager").split("/")[-1]
+          repo_title = " ".join(w.capitalize() for w in re.split(r"[-_]+", repo_slug) if w) or repo_slug
+          report_dir = pathlib.Path(".ci-report")
+          report_dir.mkdir(exist_ok=True)
+          report_path = report_dir / f"{repo_title} - CI Failure Report.md"
+          def run_cmd(cmd):
+              return subprocess.run(cmd, capture_output=True, text=True).stdout.strip()
+          sha = os.environ.get("GITHUB_SHA", "unknown")
+          run_url = f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}"
+          sections = [
+              f"# {repo_title} - CI Failure Report",
+              "",
+              f"- Repository: `{os.environ.get('GITHUB_REPOSITORY', '')}`",
+              f"- Branch: `{os.environ.get('GITHUB_REF_NAME', 'unknown')}`",
+              f"- Commit: `{sha[:8]}` — {run_cmd(['git', 'log', '-1', '--pretty=%s'])}",
+              f"- Workflow Run: {run_url}",
+              f"- Generated: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
+              "",
+              "## Stage Logs",
+          ]
+          for lf in sorted(pathlib.Path(".ci-logs").glob("*.log")):
+              sections.extend([f"### `{lf.name}`", "```text", lf.read_text(encoding="utf-8", errors="replace")[-8000:], "```", ""])
+          diff_patch = run_cmd(["git", "show", "--no-color", "--format=", "HEAD"])
+          if diff_patch:
+              sections.extend(["## Commit Diff Excerpt", "```diff", diff_patch[:12000], "```", ""])
+          report_path.write_text("\n".join(sections) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload patch-ready CI failure report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-failure-report
+          path: .ci-report/*.md
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+
+  verify-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Build & Test on Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          mkdir build -Force | Out-Null
+          go test -v ./cmd/... ./internal/...
+          $env:CGO_ENABLED = "0"
+          go build -trimpath -ldflags="-s -w -H=windowsgui" -o build/ServerManager.exe ./cmd/ServerManager
+          go build -trimpath -ldflags="-s -w" -o build/server-manager.exe ./cmd/server-manager
+          .\build\server-manager.exe --help

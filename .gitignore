@@ -1,0 +1,30 @@
+# Go binaries & build outputs
+bin/
+build/
+*.exe
+*.dll
+*.ico
+*.test
+coverage.out
+
+# CI temporary logs & reports
+.ci-logs/
+.ci-report/
+
+# Local runtime state & secrets (never commit)
+*.log
+*.jsonl
+*.sqlite
+*.db
+.env
+.env.*
+ecosystem-secrets.json
+ai-cache.json
+config.local.json
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

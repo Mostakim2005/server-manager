@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Build Portable Windows Binaries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
+          $env:CGO_ENABLED = "0"
+          $env:GOOS = "windows"
+          $env:GOARCH = "amd64"
+          go build -trimpath -ldflags="-s -w -H=windowsgui" -o release-assets/ServerManager.exe ./cmd/ServerManager
+          go build -trimpath -ldflags="-s -w" -o release-assets/server-manager.exe ./cmd/server-manager
+          Compress-Archive -Path release-assets/* -DestinationPath release-assets/ServerManager-windows-amd64.zip -Force
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/ServerManager.exe
+            release-assets/server-manager.exe
+            release-assets/ServerManager-windows-amd64.zip
+          generate_release_notes: true
