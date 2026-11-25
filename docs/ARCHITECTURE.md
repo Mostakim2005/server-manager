@@ -179,7 +179,9 @@ flowchart LR
 
 ## 4. Recipes: How to Add New Things Safely
 * **To add a new scan root or custom service:**
-  1. Use `+ Add Project` (with optional `Analyze with AI`) in the Web UI, or edit `config.json` -> `scanRoots` / `customServices` under `%LOCALAPPDATA%\ServerManager\`.
+  1. Use `+ Add Project` (with optional `Analyze with AI` and custom icon override) in the Web UI, or edit `config.json` -> `scanRoots` / `customServices` under `%LOCALAPPDATA%\ServerManager\`.
+* **To customize Stack Presets:**
+  1. Click `+ New Stack` or `Edit` on any stack chip in the header bar to check/uncheck services and reorder launch sequence (`Start` runs top-to-bottom; `Stop` runs bottom-to-top via `handleStacks` / `handleStackItem`).
 * **To add a new API endpoint or CLI verb:**
   1. Register route with `d.withGuard(...)` in `internal/server/server.go` -> `Handler`.
   2. Add corresponding subcommand in `internal/cli/cli.go` -> `Run` emitting clean JSON under `--json`.

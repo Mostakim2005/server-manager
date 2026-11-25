@@ -57,9 +57,9 @@
   * `internal/discovery/conflicts.go` -> `DetectConflicts`
 
 ### [FEATURE: Stack-Presets-Tray-Desktop-Shortcut-And-CLI] | Aliases: stack presets, charlie 4, charlie 5, svg icon, desktop shortcut, tray
-> **1-Line Summary:** Bundles one-click Stack Presets, custom SVG/ICO branding, Windows System Tray, Desktop shortcut, and a `--json` CLI registered in `ecosystem-registry.json`.
-* **User Intention (Non-Negotiable):** Launch the manager cleanly from the Desktop in one click and start/stop grouped workflows (e.g., *DeepTutor + Paradee TTS*) or drive everything from scripts/agents via CLI.
-* **Visual / UI Behavior:** Header bar includes Stack Preset quick pills, Light/Dark/System theme toggle, and tray background option; Desktop shortcut launches/focuses the GUI seamlessly.
+> **1-Line Summary:** Bundles configurable ordered Stack Presets (with live active-count badges), custom SVG/ICO branding, Windows System Tray, Desktop shortcut, and a `--json` CLI registered in `ecosystem-registry.json`.
+* **User Intention (Non-Negotiable):** Launch the manager cleanly from the Desktop in one click, create/edit/reorder grouped workflows (e.g., *DeepTutor + Paradee TTS*) with deterministic Start (forward) and Stop (reverse) order, or drive everything from scripts/agents via CLI.
+* **Visual / UI Behavior:** Header bar includes Stack Preset quick chips with live `active/total` badges, `Start`, `Stop`, `Edit`, and `✕` actions (opening the ordered checklist modal pre-filled for editing), Light/Dark/System theme toggle, and tray background option; Desktop shortcut launches/focuses the GUI seamlessly.
 * **Code Anchors (Grep Targets):**
   * `internal/branding/logo.go` -> `SVG`, `ICO`, `PNG`
   * `internal/tray/tray_windows.go` -> `InstallDesktopShortcut`

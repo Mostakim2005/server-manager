@@ -200,6 +200,25 @@ code, pre, .mono { font-family: "Cascadia Code", "Consolas", monospace; }
   border-radius: 10px;
   font-size: 0.82rem;
 }
+.stack-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: var(--surface-1);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+.stack-count.has-active {
+  background: var(--accent-soft);
+  color: var(--accent-soft-text);
+  border-color: transparent;
+}
+.stack-count.all-active {
+  background: var(--status-success-soft);
+  color: var(--status-success-text);
+  border-color: transparent;
+}
 
 .toolbar {
   display: flex;
@@ -440,7 +459,11 @@ input[type="text"], input[type="search"], input:not([type]), select, textarea {
 .roots-list, .picker-list { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
 .root-row { display: flex; gap: 6px; align-items: center; }
 .root-row input[type="text"], .root-row select { flex: 1; min-width: 0; }
-.picker-item { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px; font-weight: 500 !important; }
+.picker-item { display: flex !important; flex-direction: row !important; align-items: center; justify-content: space-between; gap: 8px; font-weight: 500 !important; padding: 4px 6px; border-radius: 8px; }
+.picker-item.is-selected { background: var(--surface-2); }
+.picker-main { display: inline-flex; align-items: center; gap: 8px; min-width: 0; flex: 1; cursor: pointer; }
+.picker-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-order-btns { display: inline-flex; gap: 4px; flex-shrink: 0; }
 .modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 6px; }
 .modal-foot.space-between { justify-content: space-between; flex-wrap: wrap; }
 

@@ -154,4 +154,26 @@ func TestDaemonSecurityAndStateEndpoints(t *testing.T) {
 	if s, ok := d.findService("demohub-run-lan"); !ok || s.GroupKey != "" {
 		t.Fatalf("expected split service to have empty GroupKey, got %+v", s)
 	}
+
+	// 6. Updating an existing stack preset preserves order and deduplicates service IDs.
+	reqStack := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8790/api/v1/stacks", bytes.NewBufferString(`{"id":"study-ai-stack","name":"Study + AI Updated","description":"Ordered","serviceIds":["demohub-run","demohub-run-lan","demohub-run"]}`))
+	reqStack.Host = "127.0.0.1:8790"
+	reqStack.Header.Set("Authorization", "Bearer "+d.UIToken)
+	rwStack := httptest.NewRecorder()
+	h.ServeHTTP(rwStack, reqStack)
+	if rwStack.Code != http.StatusOK {
+		t.Fatalf("expected 200 updating stack preset, got %d: %s", rwStack.Code, rwStack.Body.String())
+	}
+	var foundUpdated bool
+	for _, st := range d.Config.Stacks {
+		if st.ID == "study-ai-stack" {
+			foundUpdated = true
+			if st.Name != "Study + AI Updated" || len(st.ServiceIDs) != 2 || st.ServiceIDs[0] != "demohub-run" || st.ServiceIDs[1] != "demohub-run-lan" {
+				t.Fatalf("unexpected updated stack: %+v", st)
+			}
+		}
+	}
+	if !foundUpdated {
+		t.Fatalf("updated stack not found in config")
+	}
 }

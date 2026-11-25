@@ -20,6 +20,8 @@ let activeServiceId = null;
 let activeDrawerTab = 'ai';
 let eventSource = null;
 let selectedVariantByGroup = {};
+let editingStackId = null;
+let stackDraftOrder = [];
 
 const $ = (id) => document.getElementById(id);
 
@@ -154,11 +156,22 @@ function renderStacks() {
   const list = $('stacks-list');
   list.innerHTML = '';
   for (const st of state.stacks || []) {
+    const ids = st.serviceIds || [];
+    const activeCount = ids.filter((sid) => {
+      const rt = state.runtime?.[sid]?.state;
+      return rt === 'running' || rt === 'running_external';
+    }).length;
+
     const wrap = document.createElement('div');
     wrap.className = 'stack-chip';
     const name = document.createElement('span');
     name.textContent = st.name;
-    name.title = st.description || `${(st.serviceIds || []).length} services`;
+    name.title = st.description || `${ids.length} services`;
+
+    const countBadge = document.createElement('span');
+    countBadge.className = `stack-count${activeCount > 0 ? (activeCount === ids.length && ids.length > 0 ? ' all-active' : ' has-active') : ''}`;
+    countBadge.textContent = `${activeCount}/${ids.length}`;
+    countBadge.title = `${activeCount} of ${ids.length} services active`;
 
     const btnStart = document.createElement('button');
     btnStart.type = 'button';
@@ -172,6 +185,13 @@ function renderStacks() {
     btnStop.textContent = 'Stop';
     btnStop.onclick = () => runStack(st.id, 'stop', st.name);
 
+    const btnEdit = document.createElement('button');
+    btnEdit.type = 'button';
+    btnEdit.className = 'btn btn-ghost btn-xs';
+    btnEdit.textContent = 'Edit';
+    btnEdit.title = 'Edit stack services & order';
+    btnEdit.onclick = () => openStackModal(st);
+
     const btnDel = document.createElement('button');
     btnDel.type = 'button';
     btnDel.className = 'btn btn-ghost btn-xs';
@@ -183,9 +203,107 @@ function renderStacks() {
       await loadState(false);
     };
 
-    wrap.append(name, btnStart, btnStop, btnDel);
+    wrap.append(name, countBadge, btnStart, btnStop, btnEdit, btnDel);
     list.appendChild(wrap);
   }
+}
+
+function formatStackServiceLabel(s) {
+  if (s.projectName && s.projectName !== s.name && s.variantLabel) {
+    return `${s.projectName} — ${s.variantLabel}`;
+  }
+  return s.variantLabel && s.variantLabel !== s.name ? `${s.name} (${s.variantLabel})` : s.name;
+}
+
+function renderStackServicePicker() {
+  const picker = $('stack-service-picker');
+  picker.innerHTML = '';
+  const selectedSet = new Set(stackDraftOrder);
+  const byID = new Map((state.services || []).map((s) => [s.id, s]));
+
+  const available = (state.services || []).filter((x) => {
+    if (selectedSet.has(x.id)) return false;
+    if (x.isUtility || x.hiddenDuplicate) return false;
+    return true;
+  });
+
+  const orderedItems = [
+    ...stackDraftOrder.map((id) => byID.get(id)).filter(Boolean),
+    ...available,
+  ];
+
+  $('stack-selected-count').textContent = `${stackDraftOrder.length} selected`;
+
+  for (const s of orderedItems) {
+    const idx = stackDraftOrder.indexOf(s.id);
+    const isSel = idx >= 0;
+
+    const row = document.createElement('div');
+    row.className = `picker-item${isSel ? ' is-selected' : ''}`;
+
+    const lbl = document.createElement('label');
+    lbl.className = 'picker-main';
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.checked = isSel;
+    chk.value = s.id;
+    chk.onchange = () => {
+      if (chk.checked) {
+        if (!stackDraftOrder.includes(s.id)) stackDraftOrder.push(s.id);
+      } else {
+        stackDraftOrder = stackDraftOrder.filter((id) => id !== s.id);
+      }
+      renderStackServicePicker();
+    };
+    const txt = document.createElement('span');
+    txt.textContent = isSel ? `${idx + 1}. ${formatStackServiceLabel(s)}` : formatStackServiceLabel(s);
+    txt.title = s.startCmd || s.name;
+    lbl.append(chk, txt);
+    row.appendChild(lbl);
+
+    if (isSel) {
+      const btns = document.createElement('div');
+      btns.className = 'picker-order-btns';
+
+      const up = document.createElement('button');
+      up.type = 'button';
+      up.className = 'btn btn-ghost btn-xs';
+      up.textContent = '↑';
+      up.title = 'Move up (starts earlier)';
+      up.disabled = idx === 0;
+      up.onclick = () => {
+        [stackDraftOrder[idx - 1], stackDraftOrder[idx]] = [stackDraftOrder[idx], stackDraftOrder[idx - 1]];
+        renderStackServicePicker();
+      };
+
+      const down = document.createElement('button');
+      down.type = 'button';
+      down.className = 'btn btn-ghost btn-xs';
+      down.textContent = '↓';
+      down.title = 'Move down (starts later)';
+      down.disabled = idx === stackDraftOrder.length - 1;
+      down.onclick = () => {
+        [stackDraftOrder[idx], stackDraftOrder[idx + 1]] = [stackDraftOrder[idx + 1], stackDraftOrder[idx]];
+        renderStackServicePicker();
+      };
+
+      btns.append(up, down);
+      row.appendChild(btns);
+    }
+
+    picker.appendChild(row);
+  }
+}
+
+function openStackModal(existingStack = null) {
+  $('stack-form').reset();
+  editingStackId = existingStack ? existingStack.id : null;
+  $('stack-modal-title').textContent = existingStack ? `Edit Stack: ${existingStack.name}` : 'Create Stack Preset';
+  $('stack-name').value = existingStack?.name || '';
+  $('stack-desc').value = existingStack?.description || '';
+  stackDraftOrder = [...(existingStack?.serviceIds || [])];
+  renderStackServicePicker();
+  $('stack-modal').classList.remove('hidden');
 }
 
 async function runStack(id, action, name) {
@@ -918,34 +1036,25 @@ function bindEvents() {
     showToast(wantStartup ? 'Project saved & added to Windows Startup' : 'Project saved to catalog');
   };
 
-  // New Stack Modal
-  $('btn-new-stack').onclick = () => {
-    $('stack-form').reset();
-    const picker = $('stack-service-picker');
-    picker.innerHTML = '';
-    for (const s of (state.services || []).filter((x) => !x.isUtility)) {
-      const lbl = document.createElement('label');
-      lbl.className = 'picker-item';
-      lbl.innerHTML = `<input type="checkbox" value="${escapeHtml(s.id)}"> <span>${escapeHtml(s.name)}</span>`;
-      picker.appendChild(lbl);
-    }
-    $('stack-modal').classList.remove('hidden');
-  };
+  // Stack Preset Modal (Create & Edit)
+  $('btn-new-stack').onclick = () => openStackModal(null);
   $('btn-close-stack').onclick = $('btn-cancel-stack').onclick = () => $('stack-modal').classList.add('hidden');
   $('stack-form').onsubmit = async (ev) => {
     ev.preventDefault();
-    const ids = Array.from($('stack-service-picker').querySelectorAll('input:checked')).map((c) => c.value);
+    const isEdit = !!editingStackId;
     await api('/api/v1/stacks', {
       method: 'POST',
       body: JSON.stringify({
+        id: editingStackId || '',
         name: $('stack-name').value.trim(),
         description: $('stack-desc').value.trim(),
-        serviceIds: ids,
+        serviceIds: stackDraftOrder,
       }),
     });
     $('stack-modal').classList.add('hidden');
+    editingStackId = null;
     await loadState(false);
-    showToast('Stack preset saved');
+    showToast(isEdit ? 'Stack preset updated' : 'Stack preset saved');
   };
 
   // Settings Modal

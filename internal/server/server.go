@@ -813,6 +813,16 @@ func (d *Daemon) handleStacks(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Stack name required", http.StatusBadRequest)
 		return
 	}
+	cleanIDs := make([]string, 0, len(st.ServiceIDs))
+	seenIDs := make(map[string]bool, len(st.ServiceIDs))
+	for _, sid := range st.ServiceIDs {
+		sid = strings.TrimSpace(sid)
+		if sid != "" && !seenIDs[sid] {
+			seenIDs[sid] = true
+			cleanIDs = append(cleanIDs, sid)
+		}
+	}
+	st.ServiceIDs = cleanIDs
 	d.mu.Lock()
 	if st.ID == "" {
 		st.ID = fmt.Sprintf("stack-%d", time.Now().UnixMilli())
@@ -874,7 +884,13 @@ func (d *Daemon) handleStackItem(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		results := make([]map[string]any, 0, len(target.ServiceIDs))
-		for _, sid := range target.ServiceIDs {
+		ids := append([]string(nil), target.ServiceIDs...)
+		if body.Action == "stop" {
+			for i, j := 0, len(ids)-1; i < j; i, j = i+1, j-1 {
+				ids[i], ids[j] = ids[j], ids[i]
+			}
+		}
+		for _, sid := range ids {
 			entry, ok := d.findService(sid)
 			if !ok {
 				results = append(results, map[string]any{"serviceId": sid, "error": "not found in catalog"})
