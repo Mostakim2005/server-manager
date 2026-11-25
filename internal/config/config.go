@@ -36,6 +36,7 @@ type Paths struct {
 	AgenticHarnessDir   string `json:"agenticHarnessDir"`
 	ConfigPath          string `json:"configPath"`
 	AICachePath         string `json:"aiCachePath"`
+	IconsCacheDir       string `json:"iconsCacheDir"`
 	IconICOPath         string `json:"iconIcoPath"`
 }
 
@@ -60,6 +61,7 @@ type CustomService struct {
 	ScriptPath  string   `json:"scriptPath,omitempty"`
 	Ports       []int    `json:"ports,omitempty"`
 	WebURL      string   `json:"webUrl,omitempty"`
+	IconPath    string   `json:"iconPath,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
 	AddedByAI   bool     `json:"addedByAi,omitempty"`
 	UpdatedAt   string   `json:"updatedAt,omitempty"`
@@ -86,6 +88,10 @@ type AppConfig struct {
 	CustomServices       []CustomService   `json:"customServices"`
 	Stacks               []StackPreset     `json:"stacks"`
 	Notes                map[string]string `json:"notes"`
+	IconOverrides        map[string]string `json:"iconOverrides,omitempty"`
+	PreferredScripts     map[string]string `json:"preferredScripts,omitempty"`
+	UngroupedIDs         []string          `json:"ungroupedIds,omitempty"`
+	ManualGroups         map[string]string `json:"manualGroups,omitempty"`
 }
 
 // AIReport holds a structured plain-English AI explanation for a script/service.
@@ -195,6 +201,7 @@ func DiscoverPaths(overrideDataDir string) Paths {
 		AgenticHarnessDir:   harnessDir,
 		ConfigPath:          filepath.Join(dataDir, "config.json"),
 		AICachePath:         filepath.Join(dataDir, "ai-cache.json"),
+		IconsCacheDir:       filepath.Join(dataDir, "icons"),
 		IconICOPath:         filepath.Join(dataDir, "ServerManager.ico"),
 	}
 }
@@ -232,7 +239,11 @@ func DefaultConfig(p Paths) AppConfig {
 				ServiceIDs:  []string{"database-manager-start-server", "doujin-manager-run-lan"},
 			},
 		},
-		Notes: map[string]string{},
+		Notes:            map[string]string{},
+		IconOverrides:    map[string]string{},
+		PreferredScripts: map[string]string{},
+		UngroupedIDs:     []string{},
+		ManualGroups:     map[string]string{},
 	}
 }
 
@@ -337,6 +348,18 @@ func LoadOrInitConfig(p Paths) (AppConfig, error) {
 	}
 	if cfg.Notes == nil {
 		cfg.Notes = map[string]string{}
+	}
+	if cfg.IconOverrides == nil {
+		cfg.IconOverrides = map[string]string{}
+	}
+	if cfg.PreferredScripts == nil {
+		cfg.PreferredScripts = map[string]string{}
+	}
+	if cfg.UngroupedIDs == nil {
+		cfg.UngroupedIDs = []string{}
+	}
+	if cfg.ManualGroups == nil {
+		cfg.ManualGroups = map[string]string{}
 	}
 	return cfg, nil
 }

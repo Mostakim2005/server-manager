@@ -84,6 +84,11 @@ func (m *Manager) Subscribe() (<-chan Event, func()) {
 	}
 }
 
+// EmitStatus broadcasts a status refresh event to subscribed SSE tabs.
+func (m *Manager) EmitStatus(serviceID string) {
+	m.emit(Event{Type: "status", ServiceID: serviceID, Timestamp: time.Now().UTC().Format(time.RFC3339)})
+}
+
 func (m *Manager) emit(ev Event) {
 	m.subMu.Lock()
 	defer m.subMu.Unlock()

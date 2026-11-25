@@ -27,7 +27,8 @@
 * `internal/branding/` — Embedded SVG app icon + programmatic PNG & multi-size Windows `.ico` renderer
 * `internal/config/` — Path discovery, UTF-8 no-BOM atomic writers, settings, custom entries, stack presets, AI report cache, and ecosystem registry/secrets helpers
 * `internal/security/` — Loopback bind check, Host/Origin CSRF checks, constant-time bearer auth, confined `/shared-libs/` path check, secret redaction, and Windows Job Object supervision
-* `internal/discovery/` — Multi-root `.bat`/`.cmd`/`.ps1` scanner, noise filter, paired stop-script matcher, static command/port parser, and port/registry conflict detector
+* `internal/discovery/` — Multi-root `.bat`/`.cmd`/`.ps1` scanner, noise filter, paired stop-script matcher, smart project grouping & wrapper deduplication (`grouping.go`), static command/port parser, and port/registry conflict detector
+* `internal/icons/` — Multi-source project icon lookup (`favicon.*`/`logo.*`/`icon.*`), Win32 `.exe` icon extraction (`extract_windows.go`), loopback Web UI favicon probing/cache, and custom icon overrides
 * `internal/startup/` — Windows Startup folder `.lnk` manager, pre-existing shortcut adoption, silent launcher routing, and `StartupApproved` Task Manager disabled-state sync
 * `internal/supervisor/` — Process tree launcher, detached hidden boot launcher, graceful/force stop, ring-buffered stdout/stderr log capture, live TCP port probe, stack orchestrator, and SSE event hub
 * `internal/aiproxy/` — `CLIProxyAPI` (`127.0.0.1:8317`) client, model discovery, hidden auto-start helper, script report prompt builder, and folder-based AI Add Project analyzer

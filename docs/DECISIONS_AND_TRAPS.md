@@ -78,6 +78,18 @@ flowchart LR
   * `internal/startup/startup.go` -> `SetServiceEnabled`, `SetSelfEnabled`
   * `internal/supervisor/manager.go` -> `LaunchDetached`
 
+### [DECISION: Multi-Source-Service-Icons-And-NonDestructive-Grouping] | Aliases: Bravo 1, Bravo 3, Charlie 1, script selector, service icons
+> **1-Line Summary:** Grouped multi-script launchers in Server Manager with a persistent selector and manual Split/Group instead of rewriting external `.bat` files, paired with multi-source local/exe/cached-favicon icons and M3 monograms.
+* **Decision Maker:** `[DECIDED BY: HUMAN (Bravo 1/3/5/6, Charlie 1/4/5)]`
+* **Original User Intention:** Fix search icon text overlap, add clean per-app icons on service cards when available, and combine duplicate/variant `.bat` entries for the same server without breaking unrelated apps (like `PhysicsLab.bat` inside `AV Manager`) or external repo shortcuts.
+* **Options Considered:**
+  * **Option A (Rejected):** Rewriting external project `.bat` files on disk into merged scripts, or strictly grouping everything by top-level folder and scanning arbitrary `.png`/`.jpg` files.
+  * **Option B (Chosen):** Non-destructive `discovery.applyGroupingAndDeduplication` (grouping by shared ports, compatible working-dir/server family, or command signature while hiding pure `.bat`/`.ps1` wrapper twins and persisting user `PreferredScripts`/`UngroupedIDs`/`ManualGroups`), paired with strict filename-targeted icon discovery, Win32 `.exe` extraction, cached loopback favicon probing, custom icon overrides, and letter monograms.
+* **Code Anchors (Grep Targets):**
+  * `internal/discovery/grouping.go` -> `applyGroupingAndDeduplication`, `shouldAutoGroup`
+  * `internal/icons/icons.go` -> `Manager`, `Refresh`, `ProbeWebFaviconAsync`
+  * `internal/webui/static/app.js` -> `buildServiceCards`, `renderIconTile`
+
 ---
 
 ## 2. Do-Not-Touch Engineering Landmines (Traps)
@@ -128,3 +140,12 @@ flowchart LR
   * `internal/startup/startup.go` -> `snapshotShortcuts`, `computeDirSignature`
   * `internal/startup/startup_windows.go` -> `parseShortcutListJSON`, `IsStartupApproved`
   * `internal/supervisor/manager.go` -> `LaunchDetached`
+
+### [TRAP: Service-Icon-CSP-SameOrigin-And-Media-Noise] | Aliases: service-icons, Sec-Fetch-Site, attachment images, search input specificity
+> **1-Line Summary:** NEVER relax same-origin guards on `/service-icons/`, NEVER broaden icon scanning into arbitrary media subfolders (`catalog/attachments`, `characters`), and NEVER let generic `input[type="search"]` override `.search-wrap` left padding.
+* **Strict Rule:** Keep `Sec-Fetch-Site: cross-site` blocking + `Cross-Origin-Resource-Policy: same-origin` + `default-src 'none'` headers on `serveServiceIcon`, restrict local icon matching to explicit icon/logo/favicon filenames (`strictIconFileRe`), and keep `.search-wrap input[type="search"]` at higher specificity than the modal form rule in `app.css`.
+* **Why This Trap Exists (Plain English):** Media projects (`Doujin Manager`, `SillyTavern`) contain hundreds of attachment/character images that look like app icons to naive scanners, cross-origin `<img>` requests do not carry Bearer headers, and equal CSS specificity caused `input[type="search"]` to crush search-box padding over the magnifying glass icon.
+* **Protected Code Anchors (Grep Targets):**
+  * `internal/icons/icons.go` -> `findProjectIconFile`, `strictIconFileRe`
+  * `internal/server/server.go` -> `serveServiceIcon`
+  * `internal/webui/static/app.css` -> `.search-wrap input[type="search"]`

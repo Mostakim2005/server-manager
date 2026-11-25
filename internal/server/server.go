@@ -21,6 +21,7 @@ import (
 	"github.com/Mostakim2005/server-manager/internal/branding"
 	"github.com/Mostakim2005/server-manager/internal/config"
 	"github.com/Mostakim2005/server-manager/internal/discovery"
+	"github.com/Mostakim2005/server-manager/internal/icons"
 	"github.com/Mostakim2005/server-manager/internal/security"
 	"github.com/Mostakim2005/server-manager/internal/startup"
 	"github.com/Mostakim2005/server-manager/internal/supervisor"
@@ -38,6 +39,7 @@ type Daemon struct {
 	AICache           config.AICache
 	Supervisor        *supervisor.Manager
 	StartupManager    *startup.Manager
+	Icons             *icons.Manager
 	AI                *aiproxy.Client
 	Services          []discovery.ServiceEntry
 	Conflicts         []discovery.ConflictWarning
@@ -67,6 +69,7 @@ func NewDaemon(paths config.Paths) (*Daemon, error) {
 	jobSup, _ := security.NewJobSupervisor()
 	sup := supervisor.NewManager(jobSup)
 	startupMgr := startup.NewManager(paths)
+	iconMgr := icons.NewManager(paths.IconsCacheDir)
 	aiClient := aiproxy.NewClient(cfg.CLIProxyURL, paths.CLIProxyDir)
 
 	d := &Daemon{
@@ -77,6 +80,7 @@ func NewDaemon(paths config.Paths) (*Daemon, error) {
 		AICache:        aiCache,
 		Supervisor:     sup,
 		StartupManager: startupMgr,
+		Icons:          iconMgr,
 		AI:             aiClient,
 		UIToken:        tok,
 		Port:           config.DefaultPort,
@@ -90,7 +94,17 @@ func (d *Daemon) Rescan() []discovery.ServiceEntry {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.Registry, _ = config.LoadRegistry(d.Paths.RegistryPrimaryPath, d.Paths.RegistryMirrorPath)
-	d.Services = discovery.Scan(d.Paths, d.Config, d.Registry)
+	services := discovery.Scan(d.Paths, d.Config, d.Registry)
+	if d.Icons != nil {
+		resolved := d.Icons.Refresh(services, d.Config, d.Registry)
+		for i := range services {
+			if ic, ok := resolved[services[i].ID]; ok {
+				services[i].IconURL = fmt.Sprintf("/service-icons/%s?v=%s", services[i].ID, ic.Version)
+				services[i].IconSource = ic.Source
+			}
+		}
+	}
+	d.Services = services
 	d.Conflicts = discovery.DetectConflicts(d.Services, d.Registry)
 	return append([]discovery.ServiceEntry(nil), d.Services...)
 }
@@ -163,6 +177,10 @@ func (d *Daemon) Handler() http.Handler {
 			d.serveSharedLib(w, r)
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, "/service-icons/") {
+			d.serveServiceIcon(w, r)
+			return
+		}
 		uiFS.ServeHTTP(w, r)
 	})
 
@@ -190,6 +208,7 @@ func (d *Daemon) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/stacks", d.withGuard(false, true, d.handleStacks))
 	mux.HandleFunc("/api/v1/stacks/", d.withGuard(false, true, d.handleStackItem))
 	mux.HandleFunc("/api/v1/services/", d.withGuard(false, true, d.handleServiceSubroute))
+	mux.HandleFunc("/api/v1/groups/", d.withGuard(false, true, d.handleGroupSubroute))
 
 	return mux
 }
@@ -269,6 +288,29 @@ func (d *Daemon) serveSharedLib(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, target)
 }
 
+func (d *Daemon) serveServiceIcon(w http.ResponseWriter, r *http.Request) {
+	if strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site") {
+		http.Error(w, "Cross-site icon access blocked", http.StatusForbidden)
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/service-icons/")
+	if id == "" || strings.Contains(id, "/") || d.Icons == nil {
+		http.NotFound(w, r)
+		return
+	}
+	ic, ok := d.Icons.Get(id)
+	if !ok || len(ic.Data) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", ic.ContentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	_, _ = w.Write(ic.Data)
+}
+
 func (d *Daemon) handleState(w http.ResponseWriter, r *http.Request) {
 	d.mu.RLock()
 	services := append([]discovery.ServiceEntry(nil), d.Services...)
@@ -280,6 +322,25 @@ func (d *Daemon) handleState(w http.ResponseWriter, r *http.Request) {
 	runtimeMap := d.Supervisor.StatusMap(services)
 	startupMap, selfStartup := d.StartupManager.Snapshot(services)
 	aiStatus := d.AI.Probe(r.Context())
+
+	if d.Icons != nil {
+		for _, s := range services {
+			rt := runtimeMap[s.ID]
+			if (rt.State == "running" || rt.State == "running_external") && s.IconURL == "" && s.WebURL != "" {
+				d.Icons.ProbeWebFaviconAsync(s, func(svcID string, ic icons.ResolvedIcon) {
+					d.mu.Lock()
+					for i := range d.Services {
+						if d.Services[i].ID == svcID && d.Services[i].IconURL == "" {
+							d.Services[i].IconURL = fmt.Sprintf("/service-icons/%s?v=%s", svcID, ic.Version)
+							d.Services[i].IconSource = ic.Source
+						}
+					}
+					d.mu.Unlock()
+					d.Supervisor.EmitStatus(svcID)
+				})
+			}
+		}
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"services":      services,
@@ -428,9 +489,154 @@ func (d *Daemon) handleServiceSubroute(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": st})
+	case "icon":
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var body struct {
+			IconPath string `json:"iconPath"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		trimmed := strings.TrimSpace(body.IconPath)
+		if trimmed != "" && d.Icons != nil {
+			if _, err := d.Icons.ApplyCustomOverride(r.Context(), entry, trimmed); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+				return
+			}
+		}
+		d.mu.Lock()
+		if d.Config.IconOverrides == nil {
+			d.Config.IconOverrides = map[string]string{}
+		}
+		if trimmed == "" {
+			delete(d.Config.IconOverrides, id)
+			if entry.GroupKey != "" {
+				delete(d.Config.IconOverrides, entry.GroupKey)
+			}
+		} else {
+			d.Config.IconOverrides[id] = trimmed
+			if entry.GroupKey != "" {
+				d.Config.IconOverrides[entry.GroupKey] = trimmed
+			}
+		}
+		for i := range d.Config.CustomServices {
+			if d.Config.CustomServices[i].ID == id {
+				d.Config.CustomServices[i].IconPath = trimmed
+			}
+		}
+		_ = config.SaveConfig(d.Paths, d.Config)
+		d.mu.Unlock()
+		d.Rescan()
+		updated, _ := d.findService(id)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":         true,
+			"iconPath":   trimmed,
+			"iconUrl":    updated.IconURL,
+			"iconSource": updated.IconSource,
+		})
+	case "grouping":
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var body struct {
+			Action          string `json:"action"` // "split" | "rejoin" | "merge"
+			TargetGroupKey  string `json:"targetGroupKey"`
+			TargetServiceID string `json:"targetServiceId"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		d.mu.Lock()
+		if d.Config.ManualGroups == nil {
+			d.Config.ManualGroups = map[string]string{}
+		}
+		switch body.Action {
+		case "split":
+			d.Config.UngroupedIDs = addUniqueString(d.Config.UngroupedIDs, id)
+			delete(d.Config.ManualGroups, id)
+		case "rejoin":
+			d.Config.UngroupedIDs = removeString(d.Config.UngroupedIDs, id)
+			delete(d.Config.ManualGroups, id)
+		case "merge":
+			targetKey := strings.TrimSpace(body.TargetGroupKey)
+			targetSvcID := strings.TrimSpace(body.TargetServiceID)
+			if targetKey == "" && targetSvcID != "" {
+				for _, svc := range d.Services {
+					if svc.ID == targetSvcID {
+						targetKey = svc.GroupKey
+						if targetKey == "" {
+							targetKey = "custom-grp-" + sanitizeGroupSlug(svc.ID)
+							d.Config.ManualGroups[svc.ID] = targetKey
+						}
+						break
+					}
+				}
+			}
+			if targetKey == "" {
+				d.mu.Unlock()
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing target group or service"})
+				return
+			}
+			d.Config.UngroupedIDs = removeString(d.Config.UngroupedIDs, id)
+			if targetSvcID != "" {
+				d.Config.UngroupedIDs = removeString(d.Config.UngroupedIDs, targetSvcID)
+			}
+			d.Config.ManualGroups[id] = targetKey
+		default:
+			d.mu.Unlock()
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid grouping action"})
+			return
+		}
+		_ = config.SaveConfig(d.Paths, d.Config)
+		d.mu.Unlock()
+		d.Rescan()
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func (d *Daemon) handleGroupSubroute(w http.ResponseWriter, r *http.Request) {
+	rest := strings.TrimPrefix(r.URL.Path, "/api/v1/groups/")
+	parts := strings.SplitN(rest, "/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] != "preferred" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	groupKey := parts[0]
+	var body struct {
+		ServiceID string `json:"serviceId"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	d.mu.Lock()
+	if d.Config.PreferredScripts == nil {
+		d.Config.PreferredScripts = map[string]string{}
+	}
+	if strings.TrimSpace(body.ServiceID) == "" {
+		delete(d.Config.PreferredScripts, groupKey)
+	} else {
+		d.Config.PreferredScripts[groupKey] = strings.TrimSpace(body.ServiceID)
+	}
+	err := config.SaveConfig(d.Paths, d.Config)
+	d.mu.Unlock()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "groupKey": groupKey, "serviceId": body.ServiceID})
 }
 
 func (d *Daemon) handleServiceAIReport(w http.ResponseWriter, r *http.Request, entry discovery.ServiceEntry, force bool) {
@@ -713,6 +919,18 @@ func (d *Daemon) handleSettings(w http.ResponseWriter, r *http.Request) {
 	if next.Notes == nil {
 		next.Notes = d.Config.Notes
 	}
+	if next.IconOverrides == nil {
+		next.IconOverrides = d.Config.IconOverrides
+	}
+	if next.PreferredScripts == nil {
+		next.PreferredScripts = d.Config.PreferredScripts
+	}
+	if next.UngroupedIDs == nil {
+		next.UngroupedIDs = d.Config.UngroupedIDs
+	}
+	if next.ManualGroups == nil {
+		next.ManualGroups = d.Config.ManualGroups
+	}
 	if next.ScanRoots == nil {
 		next.ScanRoots = d.Config.ScanRoots
 	}
@@ -951,4 +1169,38 @@ func readFileSafe(path string, maxBytes int64) string {
 func fileExists(path string) bool {
 	st, err := os.Stat(path)
 	return err == nil && !st.IsDir()
+}
+
+func addUniqueString(items []string, val string) []string {
+	for _, it := range items {
+		if it == val {
+			return items
+		}
+	}
+	return append(items, val)
+}
+
+func removeString(items []string, val string) []string {
+	out := make([]string, 0, len(items))
+	for _, it := range items {
+		if it != val {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
+func sanitizeGroupSlug(s string) string {
+	var b strings.Builder
+	prevDash := false
+	for _, r := range strings.ToLower(s) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			prevDash = false
+		} else if !prevDash {
+			b.WriteByte('-')
+			prevDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }

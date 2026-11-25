@@ -19,6 +19,7 @@ let currentFilter = 'all';
 let activeServiceId = null;
 let activeDrawerTab = 'ai';
 let eventSource = null;
+let selectedVariantByGroup = {};
 
 const $ = (id) => document.getElementById(id);
 
@@ -70,21 +71,57 @@ function cycleTheme() {
 async function loadState(rescan = false) {
   const data = await api(rescan ? '/api/v1/rescan' : '/api/v1/state', { method: rescan ? 'POST' : 'GET' });
   state = data;
+  selectedVariantByGroup = { ...(state.config?.preferredScripts || {}), ...selectedVariantByGroup };
   $('chk-utilities').checked = !!state.config?.showUtilityScripts;
   renderTopStatus();
   renderConflicts();
   renderStacks();
   renderServices();
+  if (activeServiceId && !$('options-drawer').classList.contains('hidden')) {
+    const activeSvc = (state.services || []).find((s) => s.id === activeServiceId);
+    if (activeSvc) {
+      renderDrawerHeaderAndControls(activeSvc);
+    }
+  }
+}
+
+function getVisibleServices() {
+  const showUtil = $('chk-utilities').checked;
+  return (state.services || []).filter((s) => {
+    if (!showUtil && s.isUtility && currentFilter !== 'utility' && currentFilter !== 'startup') return false;
+    const rt = state.runtime?.[s.id]?.state || 'stopped';
+    const isActive = rt === 'running' || rt === 'running_external';
+    const stEnabled = !!state.startup?.[s.id]?.enabled;
+    if (s.hiddenDuplicate && !isActive && !stEnabled) return false;
+    return true;
+  });
+}
+
+function buildServiceCards(services) {
+  const groups = new Map();
+  for (const s of services) {
+    const key = s.groupKey || `solo:${s.id}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
+  }
+  return Array.from(groups.entries()).map(([key, variants]) => ({ key, variants }));
 }
 
 function renderTopStatus() {
-  const services = state.services || [];
-  const visible = services.filter((s) => $('chk-utilities').checked || !s.isUtility);
-  const runningCount = visible.filter((s) => {
+  const showUtil = $('chk-utilities').checked;
+  const visible = (state.services || []).filter((s) => {
+    if (!showUtil && s.isUtility) return false;
+    const rt = state.runtime?.[s.id]?.state || 'stopped';
+    const isActive = rt === 'running' || rt === 'running_external';
+    if (s.hiddenDuplicate && !isActive && !state.startup?.[s.id]?.enabled) return false;
+    return true;
+  });
+  const cards = buildServiceCards(visible);
+  const runningCount = cards.filter((c) => c.variants.some((s) => {
     const st = state.runtime?.[s.id]?.state;
     return st === 'running' || st === 'running_external';
-  }).length;
-  $('summary-badge').textContent = `${runningCount} active · ${visible.length} launchers`;
+  })).length;
+  $('summary-badge').textContent = `${runningCount} active · ${cards.length} apps`;
 
   const proxy = state.aiProxyStatus || {};
   const pill = $('btn-proxy-status');
@@ -164,7 +201,56 @@ async function runStack(id, action, name) {
   }
 }
 
-function matchesFilters(s) {
+function getServiceMonogram(name) {
+  const words = String(name || 'S').trim().split(/[\s_-]+/).filter(Boolean);
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  return (words[0] || 'S').slice(0, 2).toUpperCase();
+}
+
+function getMonogramTone(name) {
+  let h = 0;
+  const str = String(name || '');
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  }
+  return String(Math.abs(h) % 6);
+}
+
+function renderIconTile(el, svc, fallbackName = '') {
+  if (!el) return;
+  const label = fallbackName || svc?.projectName || svc?.name || 'S';
+  const monogram = getServiceMonogram(label);
+  el.innerHTML = '';
+  el.classList.remove('is-monogram');
+  el.dataset.mono = getMonogramTone(label);
+
+  const showMonogram = () => {
+    el.innerHTML = '';
+    el.classList.add('is-monogram');
+    el.textContent = monogram;
+  };
+
+  if (svc?.iconUrl) {
+    const img = document.createElement('img');
+    img.src = svc.iconUrl;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.onerror = showMonogram;
+    el.appendChild(img);
+  } else {
+    showMonogram();
+  }
+}
+
+function variantMatchesSearch(s, q) {
+  if (!q) return true;
+  const hay = [s.name, s.projectName, s.groupName, s.variantLabel, s.runtime, s.staticSummary, s.userNote, s.startCmd, (s.ports || []).join(' ')].join(' ').toLowerCase();
+  return hay.includes(q);
+}
+
+function matchesTabFilter(s) {
   const showUtil = $('chk-utilities').checked;
   if (!showUtil && s.isUtility && currentFilter !== 'utility' && currentFilter !== 'startup') return false;
 
@@ -174,18 +260,56 @@ function matchesFilters(s) {
   if (currentFilter === 'server' && s.category !== 'server' && s.category !== 'registry') return false;
   if (currentFilter === 'custom' && !s.isCustom && !s.addedByAi) return false;
   if (currentFilter === 'utility' && !s.isUtility) return false;
+  return true;
+}
 
-  const q = $('search-input').value.trim().toLowerCase();
-  if (!q) return true;
-  const hay = [s.name, s.projectName, s.runtime, s.staticSummary, s.userNote, s.startCmd, (s.ports || []).join(' ')].join(' ').toLowerCase();
-  return hay.includes(q);
+function pickDefaultVariant(variants) {
+  if (variants.length === 1) return variants[0];
+  const score = (s) => {
+    const lbl = (s.variantLabel || s.name || '').toLowerCase();
+    let sc = 0;
+    if (!lbl.includes('/')) sc += 20;
+    if (/^(start|run|run-st|start-server)\.(bat|cmd|ps1)/.test(lbl)) sc += 15;
+    if (lbl.includes('lan')) sc -= 2;
+    if ((s.ports || []).length > 0) sc += 5;
+    return sc;
+  };
+  return [...variants].sort((a, b) => score(b) - score(a))[0];
+}
+
+function pickActiveVariant(cardKey, variants, q) {
+  const matching = variants.filter((v) => matchesTabFilter(v) && variantMatchesSearch(v, q));
+  const pool = matching.length ? matching : variants;
+
+  const chosenId = selectedVariantByGroup[cardKey] || state.config?.preferredScripts?.[cardKey];
+  if (chosenId) {
+    const found = pool.find((v) => v.id === chosenId);
+    if (found) return found;
+  }
+  const managedRunning = pool.find((v) => state.runtime?.[v.id]?.state === 'running');
+  if (managedRunning) return managedRunning;
+  const anyActive = pool.find((v) => state.runtime?.[v.id]?.state === 'running_external');
+  if (anyActive) return anyActive;
+  return pickDefaultVariant(pool);
+}
+
+function formatVariantOptionLabel(v) {
+  const parts = [v.variantLabel || v.name];
+  const rt = state.runtime?.[v.id]?.state || 'stopped';
+  if (rt === 'running') parts.push('● Running');
+  else if (rt === 'running_external') parts.push('● Active');
+  if (state.startup?.[v.id]?.enabled) parts.push('★ Startup');
+  return parts.join(' · ');
 }
 
 function renderServices() {
   const grid = $('services-grid');
   grid.innerHTML = '';
-  const items = (state.services || []).filter(matchesFilters);
-  if (!items.length) {
+  const q = $('search-input').value.trim().toLowerCase();
+  const cards = buildServiceCards(getVisibleServices()).filter((c) =>
+    c.variants.some((v) => matchesTabFilter(v) && variantMatchesSearch(v, q))
+  );
+  if (!cards.length) {
     const empty = document.createElement('div');
     empty.className = 'svc-card';
     empty.innerHTML = '<h3>No matching launchers found</h3><p class="muted">Adjust your search/filters, toggle build scripts, or click Add Project.</p>';
@@ -193,22 +317,32 @@ function renderServices() {
     return;
   }
 
-  for (const s of items) {
+  for (const cardGroup of cards) {
+    const s = pickActiveVariant(cardGroup.key, cardGroup.variants, q);
     const rt = state.runtime?.[s.id] || { state: 'stopped', logCount: 0 };
     const isActive = rt.state === 'running' || rt.state === 'running_external';
+    const isGrouped = cardGroup.variants.length > 1;
     const card = document.createElement('article');
     card.className = `svc-card ${isActive ? 'is-running' : ''}`;
 
     const head = document.createElement('div');
     head.className = 'svc-head';
+    const identity = document.createElement('div');
+    identity.className = 'svc-identity';
+    const iconBox = document.createElement('div');
+    iconBox.className = 'svc-icon';
+    const iconSourceSvc = s.iconUrl ? s : (cardGroup.variants.find((v) => v.iconUrl) || s);
+    renderIconTile(iconBox, iconSourceSvc, isGrouped ? (s.groupName || s.projectName) : s.name);
+
     const titleBox = document.createElement('div');
     const title = document.createElement('h2');
     title.className = 'svc-title';
-    title.textContent = s.name;
+    title.textContent = isGrouped ? (s.groupName || s.projectName || s.name) : s.name;
     const sub = document.createElement('div');
     sub.className = 'svc-sub';
-    sub.textContent = `${s.runtime} · ${s.sourceType.toUpperCase()}`;
+    sub.textContent = `${s.runtime} · ${s.sourceType.toUpperCase()}${isGrouped ? ` · ${cardGroup.variants.length} scripts` : ''}`;
     titleBox.append(title, sub);
+    identity.append(iconBox, titleBox);
 
     const badge = document.createElement('span');
     badge.className = `state-badge state-${rt.state}`;
@@ -217,7 +351,39 @@ function renderServices() {
       : rt.state === 'running_external'
         ? `Running Ext${rt.externalPids?.length ? ' #' + rt.externalPids[0] : ''}`
         : rt.state === 'error' ? 'Error' : 'Stopped';
-    head.append(titleBox, badge);
+    head.append(identity, badge);
+
+    let variantRow = null;
+    if (isGrouped) {
+      variantRow = document.createElement('div');
+      variantRow.className = 'svc-variant-row';
+      const lbl = document.createElement('span');
+      lbl.className = 'svc-variant-label';
+      lbl.textContent = 'Script:';
+      const sel = document.createElement('select');
+      sel.className = 'svc-variant-select';
+      sel.setAttribute('aria-label', `Select script mode for ${title.textContent}`);
+      for (const v of cardGroup.variants) {
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = formatVariantOptionLabel(v);
+        if (v.id === s.id) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      sel.onchange = async () => {
+        selectedVariantByGroup[cardGroup.key] = sel.value;
+        renderServices();
+        try {
+          await api(`/api/v1/groups/${encodeURIComponent(cardGroup.key)}/preferred`, {
+            method: 'POST',
+            body: JSON.stringify({ serviceId: sel.value }),
+          });
+          if (!state.config.preferredScripts) state.config.preferredScripts = {};
+          state.config.preferredScripts[cardGroup.key] = sel.value;
+        } catch {}
+      };
+      variantRow.append(lbl, sel);
+    }
 
     const meta = document.createElement('div');
     meta.className = 'svc-meta';
@@ -280,7 +446,11 @@ function renderServices() {
     const bOpts = mkBtn('Options', 'btn-tonal btn-sm', 'sliders', () => openDrawer(s.id, 'ai'));
     actions.append(bLogs, bOpts);
 
-    card.append(head, meta, summary, actions);
+    if (variantRow) {
+      card.append(head, variantRow, meta, summary, actions);
+    } else {
+      card.append(head, meta, summary, actions);
+    }
     grid.appendChild(card);
   }
   hydrateIcons(grid);
@@ -306,12 +476,71 @@ async function svcAction(id, action) {
   }
 }
 
+function renderDrawerHeaderAndControls(svc) {
+  $('drawer-title').textContent = svc.name;
+  $('drawer-subtitle').textContent = svc.workingDir || svc.scriptPath || svc.startCmd;
+  renderIconTile($('drawer-icon'), svc);
+  const customOverride = state.config?.iconOverrides?.[svc.id] || (svc.groupKey ? state.config?.iconOverrides?.[svc.groupKey] : '') || '';
+  $('service-icon-input').value = customOverride;
+  $('service-icon-source').textContent = svc.iconSource ? `Source: ${svc.iconSource}` : 'Monogram';
+  renderDrawerStartup(svc);
+  renderDrawerGrouping(svc);
+}
+
+function renderDrawerGrouping(svc) {
+  const badge = $('grouping-badge');
+  const desc = $('grouping-desc');
+  const btnSplit = $('btn-split-card');
+  const btnRejoin = $('btn-rejoin-card');
+  const mergeRow = $('grouping-merge-row');
+  const mergeSel = $('grouping-merge-target');
+
+  const isManuallyUngrouped = (state.config?.ungroupedIds || []).includes(svc.id);
+  const isManuallyMerged = !!state.config?.manualGroups?.[svc.id];
+  const groupMembers = svc.groupKey ? (state.services || []).filter((x) => x.groupKey === svc.groupKey && !x.hiddenDuplicate) : [];
+
+  btnSplit.classList.toggle('hidden', !svc.groupKey);
+  btnRejoin.classList.toggle('hidden', !isManuallyUngrouped && !isManuallyMerged);
+
+  if (svc.groupKey) {
+    badge.className = 'tag tag-ai';
+    badge.textContent = `Grouped (${groupMembers.length})`;
+    desc.textContent = `Combined under "${svc.groupName || svc.projectName}". Split this script if you want it on its own separate card.`;
+  } else if (isManuallyUngrouped && svc.autoGroupKey) {
+    badge.className = 'tag tag-warn';
+    badge.textContent = 'Split Manually';
+    desc.textContent = `Split out of ${svc.projectName}. Re-join its automatic group or merge into another card below.`;
+  } else {
+    badge.className = 'tag';
+    badge.textContent = 'Standalone';
+    desc.textContent = 'This card is standalone. Optionally merge it into another project card below.';
+  }
+
+  mergeSel.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Group into another card…';
+  mergeSel.appendChild(placeholder);
+
+  const seenTargets = new Set();
+  for (const cand of (state.services || [])) {
+    if (cand.id === svc.id || cand.isUtility || cand.hiddenDuplicate) continue;
+    if (svc.groupKey && cand.groupKey === svc.groupKey) continue;
+    const tKey = cand.groupKey || `solo:${cand.id}`;
+    if (seenTargets.has(tKey)) continue;
+    seenTargets.add(tKey);
+    const opt = document.createElement('option');
+    opt.value = cand.groupKey ? `grp:${cand.groupKey}` : `svc:${cand.id}`;
+    opt.textContent = cand.groupKey ? (cand.groupName || cand.projectName) : cand.name;
+    mergeSel.appendChild(opt);
+  }
+  mergeRow.classList.toggle('hidden', mergeSel.options.length <= 1);
+}
+
 async function openDrawer(id, tab = 'ai') {
   activeServiceId = id;
   const svc = state.services.find((s) => s.id === id);
   if (!svc) return;
-  $('drawer-title').textContent = svc.name;
-  $('drawer-subtitle').textContent = svc.workingDir || svc.scriptPath || svc.startCmd;
   $('service-note-input').value = svc.userNote || '';
   $('btn-delete-custom').classList.toggle('hidden', !svc.isCustom);
 
@@ -334,7 +563,7 @@ async function openDrawer(id, tab = 'ai') {
   }
 
   $('options-drawer').classList.remove('hidden');
-  renderDrawerStartup(svc);
+  renderDrawerHeaderAndControls(svc);
   switchDrawerTab(tab);
 
   if (tab === 'ai') {
@@ -543,6 +772,63 @@ function bindEvents() {
     showToast('Saved note');
     await loadState(false);
   };
+  $('btn-save-icon').onclick = async () => {
+    if (!activeServiceId) return;
+    try {
+      await api(`/api/v1/services/${encodeURIComponent(activeServiceId)}/icon`, {
+        method: 'POST',
+        body: JSON.stringify({ iconPath: $('service-icon-input').value.trim() }),
+      });
+      showToast('Updated service icon');
+      await loadState(false);
+    } catch (e) {
+      showToast(`Icon failed: ${e.message}`);
+    }
+  };
+  $('btn-reset-icon').onclick = async () => {
+    if (!activeServiceId) return;
+    await api(`/api/v1/services/${encodeURIComponent(activeServiceId)}/icon`, {
+      method: 'POST',
+      body: JSON.stringify({ iconPath: '' }),
+    });
+    showToast('Reset icon to auto-detect');
+    await loadState(false);
+  };
+  $('btn-split-card').onclick = async () => {
+    if (!activeServiceId) return;
+    await api(`/api/v1/services/${encodeURIComponent(activeServiceId)}/grouping`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'split' }),
+    });
+    showToast('Split script to its own card');
+    await loadState(false);
+  };
+  $('btn-rejoin-card').onclick = async () => {
+    if (!activeServiceId) return;
+    await api(`/api/v1/services/${encodeURIComponent(activeServiceId)}/grouping`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'rejoin' }),
+    });
+    showToast('Restored automatic card grouping');
+    await loadState(false);
+  };
+  $('btn-merge-card').onclick = async () => {
+    if (!activeServiceId) return;
+    const raw = $('grouping-merge-target').value;
+    if (!raw) {
+      showToast('Pick a target card first');
+      return;
+    }
+    const body = raw.startsWith('grp:')
+      ? { action: 'merge', targetGroupKey: raw.slice(4) }
+      : { action: 'merge', targetServiceId: raw.slice(4) };
+    await api(`/api/v1/services/${encodeURIComponent(activeServiceId)}/grouping`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    showToast('Grouped cards together');
+    await loadState(false);
+  };
   $('btn-copy-cmd').onclick = async () => {
     const svc = state.services.find((s) => s.id === activeServiceId);
     if (svc) { await navigator.clipboard.writeText(svc.startCmd); showToast('Copied start command'); }
@@ -613,6 +899,7 @@ function bindEvents() {
         stopCmd: $('add-stopcmd').value.trim(),
         ports,
         webUrl: $('add-weburl').value.trim(),
+        iconPath: $('add-iconpath').value.trim(),
         addedByAi: !!$('ai-add-status').textContent.includes('AI pre-filled'),
       }),
     });

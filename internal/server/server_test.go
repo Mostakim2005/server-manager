@@ -97,4 +97,61 @@ func TestDaemonSecurityAndStateEndpoints(t *testing.T) {
 	} else if rw4.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 on non-Windows startup toggle, got %d", rw4.Code)
 	}
+
+	// 5. Custom service icon override, /service-icons/ serving, preferred script, and grouping split/rejoin.
+	svcDir := filepath.Join(paths.AgenticHarnessDir, "DemoHub")
+	_ = os.MkdirAll(svcDir, 0o755)
+	_ = os.WriteFile(filepath.Join(svcDir, "run.bat"), []byte("@echo off\npython -m uvicorn app:app --port 8991\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(svcDir, "run-lan.bat"), []byte("@echo off\npython -m uvicorn app:app --host 0.0.0.0 --port 8991\n"), 0o600)
+	iconSVG := filepath.Join(tmp, "demo.svg")
+	_ = os.WriteFile(iconSVG, []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/></svg>`), 0o600)
+	d.Rescan()
+
+	iconBody, _ := json.Marshal(map[string]string{"iconPath": iconSVG})
+	reqIcon := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8790/api/v1/services/demohub-run/icon", bytes.NewReader(iconBody))
+	reqIcon.Host = "127.0.0.1:8790"
+	reqIcon.Header.Set("Authorization", "Bearer "+d.UIToken)
+	rwIcon := httptest.NewRecorder()
+	h.ServeHTTP(rwIcon, reqIcon)
+	if rwIcon.Code != http.StatusOK {
+		t.Fatalf("expected 200 saving icon override, got %d: %s", rwIcon.Code, rwIcon.Body.String())
+	}
+
+	reqServeIcon := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8790/service-icons/demohub-run", nil)
+	reqServeIcon.Host = "127.0.0.1:8790"
+	rwServeIcon := httptest.NewRecorder()
+	h.ServeHTTP(rwServeIcon, reqServeIcon)
+	if rwServeIcon.Code != http.StatusOK || rwServeIcon.Header().Get("Cross-Origin-Resource-Policy") != "same-origin" {
+		t.Fatalf("expected 200 serving icon with same-origin policy, got %d", rwServeIcon.Code)
+	}
+
+	reqCross := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8790/service-icons/demohub-run", nil)
+	reqCross.Host = "127.0.0.1:8790"
+	reqCross.Header.Set("Sec-Fetch-Site", "cross-site")
+	rwCross := httptest.NewRecorder()
+	h.ServeHTTP(rwCross, reqCross)
+	if rwCross.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 on cross-site icon fetch, got %d", rwCross.Code)
+	}
+
+	reqPref := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8790/api/v1/groups/proj-demohub/preferred", bytes.NewBufferString(`{"serviceId":"demohub-run-lan"}`))
+	reqPref.Host = "127.0.0.1:8790"
+	reqPref.Header.Set("Authorization", "Bearer "+d.UIToken)
+	rwPref := httptest.NewRecorder()
+	h.ServeHTTP(rwPref, reqPref)
+	if rwPref.Code != http.StatusOK || d.Config.PreferredScripts["proj-demohub"] != "demohub-run-lan" {
+		t.Fatalf("expected preferred script persisted, code=%d val=%q", rwPref.Code, d.Config.PreferredScripts["proj-demohub"])
+	}
+
+	reqSplit := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8790/api/v1/services/demohub-run-lan/grouping", bytes.NewBufferString(`{"action":"split"}`))
+	reqSplit.Host = "127.0.0.1:8790"
+	reqSplit.Header.Set("Authorization", "Bearer "+d.UIToken)
+	rwSplit := httptest.NewRecorder()
+	h.ServeHTTP(rwSplit, reqSplit)
+	if rwSplit.Code != http.StatusOK {
+		t.Fatalf("expected 200 splitting card, got %d: %s", rwSplit.Code, rwSplit.Body.String())
+	}
+	if s, ok := d.findService("demohub-run-lan"); !ok || s.GroupKey != "" {
+		t.Fatalf("expected split service to have empty GroupKey, got %+v", s)
+	}
 }

@@ -97,9 +97,12 @@
   <aside id="options-drawer" class="drawer hidden" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
     <div class="drawer-panel">
       <div class="drawer-header">
-        <div>
-          <h2 id="drawer-title">Service Options</h2>
-          <p id="drawer-subtitle" class="muted"></p>
+        <div class="drawer-identity">
+          <div id="drawer-icon" class="svc-icon svc-icon-lg"></div>
+          <div>
+            <h2 id="drawer-title">Service Options</h2>
+            <p id="drawer-subtitle" class="muted"></p>
+          </div>
         </div>
         <button id="btn-close-drawer" type="button" class="btn btn-ghost" aria-label="Close drawer">✕</button>
       </div>
@@ -138,6 +141,36 @@
             </button>
           </div>
           <div id="ai-report-box" class="ai-box">Select a service to analyze…</div>
+        </div>
+
+        <div class="card-section">
+          <div class="section-head">
+            <h3>Service Icon</h3>
+            <span id="service-icon-source" class="tag">Auto</span>
+          </div>
+          <div class="root-row">
+            <input id="service-icon-input" type="text" placeholder="Optional path (.png, .svg, .ico, .exe) or http(s) URL">
+            <button id="btn-save-icon" type="button" class="btn btn-primary btn-xs">Save Icon</button>
+            <button id="btn-reset-icon" type="button" class="btn btn-ghost btn-xs">Reset</button>
+          </div>
+        </div>
+
+        <div id="grouping-card-section" class="card-section">
+          <div class="section-head">
+            <h3>Card Grouping</h3>
+            <span id="grouping-badge" class="tag">Standalone</span>
+          </div>
+          <p id="grouping-desc" class="small muted"></p>
+          <div class="grouping-actions">
+            <div class="drawer-quick-actions">
+              <button id="btn-split-card" type="button" class="btn btn-tonal btn-xs hidden">Split to Separate Card</button>
+              <button id="btn-rejoin-card" type="button" class="btn btn-tonal btn-xs hidden">Re-join Project Group</button>
+            </div>
+            <div id="grouping-merge-row" class="root-row">
+              <select id="grouping-merge-target" aria-label="Target card to group with"></select>
+              <button id="btn-merge-card" type="button" class="btn btn-tonal btn-xs">Group Together</button>
+            </div>
+          </div>
         </div>
 
         <div class="card-section">
@@ -224,6 +257,9 @@
         </label>
         <label>Web UI URL (optional)
           <input id="add-weburl" placeholder="http://127.0.0.1:8080">
+        </label>
+        <label class="span-2">Custom Icon Path / URL (optional)
+          <input id="add-iconpath" placeholder="C:\path\to\icon.png, app.exe, or http://127.0.0.1:8080/favicon.ico">
         </label>
         <label class="switch-row span-2">
           <input id="add-startup" type="checkbox">

@@ -12,7 +12,8 @@ flowchart TB
     classDef aiNode fill:#7c3aed,stroke:#4c1d95,color:#ffffff
 
     User(["Desktop Shortcut / Browser / --json CLI"]):::startNode -->|Host+Origin+Bearer Guard| API["Go HTTP + SSE Server (127.0.0.1:8790)"]:::processNode
-    API --> Disc["Discovery & Port Conflict Engine"]:::processNode
+    API --> Disc["Discovery, Grouping & Conflict Engine"]:::processNode
+    API --> Icons["Service Icon Resolver & Cache"]:::processNode
     API --> Sup["Supervisor (Job Objects + Ring Logs + TCP Probe)"]:::processNode
     API --> Boot["Windows Startup Manager (.lnk + StartupApproved)"]:::processNode
     API --> AI["CLIProxyAPI Client (127.0.0.1:8317)"]:::aiNode
@@ -68,7 +69,40 @@ flowchart LR
 
 * **Code Anchors (Grep Targets):**
   * `internal/discovery/scanner.go` -> `Scan`
+  * `internal/discovery/grouping.go` -> `applyGroupingAndDeduplication`, `markDuplicateWrappers`
   * `internal/discovery/conflicts.go` -> `DetectConflicts`
+
+### [SUBSYSTEM: Service-Icon-Resolver-And-Cache] | Aliases: icon resolver, favicon cache, exe icon, monogram, service-icons
+> **1-Line Summary:** Resolves per-service icons from user overrides, targeted local project assets, Windows `.exe` resources, and asynchronous loopback Web UI favicon probes, serving them safely on `/service-icons/<id>` with monogram fallbacks.
+* **Plain-English Walkthrough:** During `Rescan`, `icons.Manager` checks custom overrides, targeted asset paths (`favicon.*`, `logo.*`, `icon.*`, `mark.*`, `app*.ico`), Windows `.exe` icon extraction (`PrivateExtractIconsW` -> PNG), and disk-cached favicons under `%LOCALAPPDATA%\ServerManager\icons`. Whenever an active loopback service lacks an icon, `handleState` triggers an async favicon probe that caches the icon to disk and emits an SSE `status` update so cards refresh automatically without blocking UI loads.
+
+```mermaid
+flowchart LR
+    classDef startNode fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+    classDef processNode fill:#0f766e,stroke:#115e59,color:#ffffff
+    classDef outputNode fill:#15803d,stroke:#14532d,color:#ffffff
+
+    Svc(["Service Entry"]):::startNode --> Ov{"Custom Override?"}:::processNode
+    Ov -->|Yes| Cache["Validate & Serve (/service-icons/id)"]:::outputNode
+    Ov -->|No| Loc{"Targeted Local Icon?"}:::processNode
+    Loc -->|Found| Cache
+    Loc -->|None| Exe{"App .exe / Disk Cache?"}:::processNode
+    Exe -->|Found| Cache
+    Exe -->|None| Live{"Running Loopback WebUI?"}:::processNode
+    Live -->|Async Probe OK| Cache
+    Live -->|Offline / None| Mono(["Deterministic M3 Monogram"]):::outputNode
+
+    subgraph Legend["Legend (Color Guide)"]
+        L1(["Blue = Catalog Service"]):::startNode
+        L2["Teal = Priority Icon Pipeline"]:::processNode
+        L3(["Green = Safe Same-Origin Image / Monogram"]):::outputNode
+    end
+```
+
+* **Code Anchors (Grep Targets):**
+  * `internal/icons/icons.go` -> `Manager`, `Refresh`, `ProbeWebFaviconAsync`, `ApplyCustomOverride`
+  * `internal/icons/extract_windows.go` -> `extractExecutableIconPNG`
+  * `internal/server/server.go` -> `serveServiceIcon`, `handleState`
 
 ### [FLOW: Options-AI-Report-And-Add-Project] | Aliases: ai report, cli proxy, add with ai, auto-start
 > **1-Line Summary:** Clicking Options or Add with AI checks `127.0.0.1:8317`, auto-starts `CLIProxyAPI` if offline, queries an available model with redacted context, and caches or pre-fills the result.

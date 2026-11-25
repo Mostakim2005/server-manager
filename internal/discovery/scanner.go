@@ -24,28 +24,35 @@ type ConflictWarning struct {
 
 // ServiceEntry represents a discovered or custom launcher/service card.
 type ServiceEntry struct {
-	ID             string            `json:"id"`
-	Name           string            `json:"name"`
-	ProjectName    string            `json:"projectName"`
-	Category       string            `json:"category"`   // "server" | "desktop" | "utility" | "registry" | "custom"
-	SourceType     string            `json:"sourceType"` // "bat" | "cmd" | "ps1" | "custom" | "registry"
-	ScriptPath     string            `json:"scriptPath,omitempty"`
-	StopScriptPath string            `json:"stopScriptPath,omitempty"`
-	WorkingDir     string            `json:"workingDir"`
-	StartCmd       string            `json:"startCmd"`
-	StopCmd        string            `json:"stopCmd,omitempty"`
-	Ports          []int             `json:"ports"`
-	WebURL         string            `json:"webUrl,omitempty"`
-	BindHost       string            `json:"bindHost,omitempty"`
-	Runtime        string            `json:"runtime"`
-	StaticSummary  string            `json:"staticSummary"`
-	UserNote       string            `json:"userNote,omitempty"`
-	ScriptHash     string            `json:"scriptHash"`
-	IsUtility      bool              `json:"isUtility"`
-	IsCustom       bool              `json:"isCustom"`
-	AddedByAI      bool              `json:"addedByAi"`
-	Tags           []string          `json:"tags,omitempty"`
-	Conflicts      []ConflictWarning `json:"conflicts,omitempty"`
+	ID              string            `json:"id"`
+	Name            string            `json:"name"`
+	ProjectName     string            `json:"projectName"`
+	Category        string            `json:"category"`   // "server" | "desktop" | "utility" | "registry" | "custom"
+	SourceType      string            `json:"sourceType"` // "bat" | "cmd" | "ps1" | "custom" | "registry"
+	ScriptPath      string            `json:"scriptPath,omitempty"`
+	StopScriptPath  string            `json:"stopScriptPath,omitempty"`
+	WorkingDir      string            `json:"workingDir"`
+	StartCmd        string            `json:"startCmd"`
+	StopCmd         string            `json:"stopCmd,omitempty"`
+	Ports           []int             `json:"ports"`
+	WebURL          string            `json:"webUrl,omitempty"`
+	BindHost        string            `json:"bindHost,omitempty"`
+	Runtime         string            `json:"runtime"`
+	StaticSummary   string            `json:"staticSummary"`
+	UserNote        string            `json:"userNote,omitempty"`
+	ScriptHash      string            `json:"scriptHash"`
+	IsUtility       bool              `json:"isUtility"`
+	IsCustom        bool              `json:"isCustom"`
+	AddedByAI       bool              `json:"addedByAi"`
+	Tags            []string          `json:"tags,omitempty"`
+	Conflicts       []ConflictWarning `json:"conflicts,omitempty"`
+	GroupKey        string            `json:"groupKey,omitempty"`
+	GroupName       string            `json:"groupName,omitempty"`
+	AutoGroupKey    string            `json:"autoGroupKey,omitempty"`
+	VariantLabel    string            `json:"variantLabel,omitempty"`
+	HiddenDuplicate bool              `json:"hiddenDuplicate,omitempty"`
+	IconURL         string            `json:"iconUrl,omitempty"`
+	IconSource      string            `json:"iconSource,omitempty"`
 }
 
 var skipDirNames = map[string]struct{}{
@@ -242,6 +249,7 @@ func Scan(paths config.Paths, cfg config.AppConfig, reg *config.EcosystemRegistr
 	}
 
 	DetectConflicts(out, reg)
+	applyGroupingAndDeduplication(out, cfg)
 
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].IsUtility != out[j].IsUtility {
