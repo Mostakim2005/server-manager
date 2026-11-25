@@ -89,6 +89,11 @@ func (m *Manager) EmitStatus(serviceID string) {
 	m.emit(Event{Type: "status", ServiceID: serviceID, Timestamp: time.Now().UTC().Format(time.RFC3339)})
 }
 
+// EmitUIReload broadcasts a Web UI reload trigger to subscribed SSE tabs.
+func (m *Manager) EmitUIReload() {
+	m.emit(Event{Type: "ui-reload", Timestamp: time.Now().UTC().Format(time.RFC3339)})
+}
+
 func (m *Manager) emit(ev Event) {
 	m.subMu.Lock()
 	defer m.subMu.Unlock()

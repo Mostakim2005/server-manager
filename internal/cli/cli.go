@@ -245,7 +245,14 @@ func Run(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "install-shortcut failed: %v\n", err)
 			return 1
 		}
-		return emit(stdout, *asJSON, map[string]any{"shortcut": lnk, "icon": paths.IconICOPath}, func() string {
+		var devLnk string
+		if repoDir := config.ResolveRepoDir(paths, reg); repoDir != "" {
+			devLnk, _ = tray.InstallDevDesktopShortcut(paths.DesktopDir, paths.IconICOPath, repoDir)
+		}
+		return emit(stdout, *asJSON, map[string]any{"shortcut": lnk, "devShortcut": devLnk, "icon": paths.IconICOPath}, func() string {
+			if devLnk != "" {
+				return "Created shortcuts: " + lnk + " & " + devLnk
+			}
 			return "Created shortcut: " + lnk
 		})
 

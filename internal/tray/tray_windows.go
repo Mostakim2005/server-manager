@@ -342,6 +342,34 @@ func createPNGIcon(size int) uintptr {
 
 // InstallDesktopShortcut writes ServerManager.ico and creates Desktop\Server Manager.lnk.
 func InstallDesktopShortcut(desktopDir, icoPath, targetExe, workDir string) (string, error) {
+	resolvedDesktop, err := ensureDesktopIconAndDir(desktopDir, icoPath)
+	if err != nil {
+		return "", err
+	}
+	lnkPath := filepath.Join(resolvedDesktop, "Server Manager.lnk")
+	return lnkPath, writeWindowsShortcut(lnkPath, targetExe, "", workDir, icoPath, "Server Manager — Unified Local Server & Script Control Hub")
+}
+
+// InstallDevDesktopShortcut creates Desktop\Server Manager (Hot-Reload).lnk targeting hidden go-run dev launcher.
+func InstallDevDesktopShortcut(desktopDir, icoPath, repoDir string) (string, error) {
+	vbsPath := filepath.Join(repoDir, "start-dev-hidden.vbs")
+	if st, err := os.Stat(vbsPath); err != nil || st.IsDir() {
+		return "", fmt.Errorf("missing dev launcher script %s", vbsPath)
+	}
+	resolvedDesktop, err := ensureDesktopIconAndDir(desktopDir, icoPath)
+	if err != nil {
+		return "", err
+	}
+	wscriptExe := filepath.Join(os.Getenv("SystemRoot"), "System32", "wscript.exe")
+	if _, err := os.Stat(wscriptExe); err != nil {
+		wscriptExe = "wscript.exe"
+	}
+	lnkPath := filepath.Join(resolvedDesktop, "Server Manager (Hot-Reload).lnk")
+	args := fmt.Sprintf(`//B "%s"`, vbsPath)
+	return lnkPath, writeWindowsShortcut(lnkPath, wscriptExe, args, repoDir, icoPath, "Server Manager (Hot-Reload Dev Mode) — Latest Go & Live Web UI")
+}
+
+func ensureDesktopIconAndDir(desktopDir, icoPath string) (string, error) {
 	icoBytes, err := branding.ICO()
 	if err != nil {
 		return "", fmt.Errorf("render ico: %w", err)
@@ -356,20 +384,25 @@ func InstallDesktopShortcut(desktopDir, icoPath, targetExe, workDir string) (str
 		home, _ := os.UserHomeDir()
 		desktopDir = filepath.Join(home, "Desktop")
 	}
-	lnkPath := filepath.Join(desktopDir, "Server Manager.lnk")
+	return desktopDir, nil
+}
+
+func writeWindowsShortcut(lnkPath, targetPath, args, workDir, icoPath, desc string) error {
 	psScript := fmt.Sprintf(
-		`$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%s');$s.TargetPath='%s';$s.WorkingDirectory='%s';$s.IconLocation='%s,0';$s.Description='Server Manager — Unified Local Server & Script Control Hub';$s.Save()`,
+		`$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%s');$s.TargetPath='%s';$s.Arguments='%s';$s.WorkingDirectory='%s';$s.IconLocation='%s,0';$s.Description='%s';$s.Save()`,
 		escapePS(lnkPath),
-		escapePS(targetExe),
+		escapePS(targetPath),
+		escapePS(args),
 		escapePS(workDir),
 		escapePS(icoPath),
+		escapePS(desc),
 	)
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psScript)
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_NO_WINDOW}
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return lnkPath, fmt.Errorf("create shortcut: %w (%s)", err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("create shortcut: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
-	return lnkPath, nil
+	return nil
 }
 
 func escapePS(s string) string {

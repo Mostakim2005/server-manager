@@ -90,6 +90,18 @@ flowchart LR
   * `internal/icons/icons.go` -> `Manager`, `Refresh`, `ProbeWebFaviconAsync`
   * `internal/webui/static/app.js` -> `buildServiceCards`, `renderIconTile`
 
+### [DECISION: Disk-Static-HotReload-And-Dual-Shortcuts] | Aliases: Alpha 1, Bravo 1, Bravo 4, Bravo 5, hot reload, start-dev
+> **1-Line Summary:** Added pure-Go mtime-polled disk Web UI serving (`ui-reload` SSE) plus a hidden `go run` dev shortcut alongside `ServerManager.exe` instead of bundling `air` or restarting managed servers on CSS/JS edits.
+* **Decision Maker:** `[DECIDED BY: HUMAN (Alpha 1, Bravo 1, Bravo 4, Bravo 5)]`
+* **Original User Intention:** Avoid rebuilding `.exe` binaries after UI or small fixes and launch Server Manager as a hot-loaded Web GUI from the Desktop.
+* **Options Considered:**
+  * **Option A (Rejected):** Installing an external Go file watcher (`air`) that restarts the Go backend process on any edit (which would interrupt active managed child processes) or overwriting the production `.exe` Desktop shortcut.
+  * **Option B (Chosen):** Auto-resolve `internal/webui/static` via `config.ResolveRepoDir`, serve disk assets with `Cache-Control: no-store` and pure-Go `450ms` mtime polling emitting `ui-reload` over SSE, and add a second `Server Manager (Hot-Reload).lnk` Desktop shortcut invoking `start-dev-hidden.vbs` -> `go run -ldflags="-H=windowsgui" ./cmd/ServerManager`.
+* **Code Anchors (Grep Targets):**
+  * `internal/server/server.go` -> `resolveLiveWebUIDir`, `watchLiveWebUIDir`
+  * `internal/tray/tray_windows.go` -> `InstallDevDesktopShortcut`
+  * `start-dev.bat` / `start-dev-hidden.vbs`
+
 ---
 
 ## 2. Do-Not-Touch Engineering Landmines (Traps)

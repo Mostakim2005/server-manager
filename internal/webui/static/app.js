@@ -132,6 +132,16 @@ function renderTopStatus() {
   $('proxy-label').textContent = proxy.online
     ? `AI Proxy Ready (${(proxy.models || []).length} models)`
     : 'AI Proxy Offline (auto-starts)';
+
+  const hotPill = $('btn-open-browser');
+  if (hotPill) {
+    const isLive = !!state.hotReload;
+    hotPill.classList.toggle('is-live', isLive);
+    $('hotreload-label').textContent = isLive ? 'Hot-Reload On · Browser' : 'Browser Tab';
+    hotPill.title = isLive
+      ? `Live Web UI Hot-Reload active (${state.webUiDir}) — click to open in browser tab`
+      : 'Open Server Manager Web GUI in a browser tab';
+  }
 }
 
 function renderConflicts() {
@@ -823,6 +833,18 @@ function connectSSE() {
   if (eventSource) eventSource.close();
   eventSource = new EventSource(`/api/v1/events?token=${encodeURIComponent(token)}`);
   eventSource.addEventListener('status', () => loadState(false));
+  eventSource.addEventListener('ui-reload', () => {
+    try {
+      sessionStorage.setItem('sm-reload-state', JSON.stringify({
+        q: $('search-input').value,
+        filter: currentFilter,
+        activeServiceId,
+        activeDrawerTab,
+      }));
+    } catch {}
+    showToast('Web UI updated — hot-reloading…');
+    setTimeout(() => window.location.reload(), 120);
+  });
   eventSource.addEventListener('log', (ev) => {
     try {
       const payload = JSON.parse(ev.data);
@@ -1113,7 +1135,8 @@ function bindEvents() {
   $('btn-install-shortcut').onclick = async () => {
     try {
       const res = await api('/api/v1/install-shortcut', { method: 'POST' });
-      showToast(`Shortcut created: ${res.shortcut}`);
+      const msg = res.devShortcut ? `Shortcuts created: ${res.shortcut} & ${res.devShortcut}` : `Shortcut created: ${res.shortcut}`;
+      showToast(msg);
     } catch (e) {
       showToast(`Shortcut failed: ${e.message}`);
     }
@@ -1157,5 +1180,26 @@ function appendRootRow(r) {
   $('scan-roots-list').appendChild(row);
 }
 
+function restoreHotReloadUIState() {
+  try {
+    const raw = sessionStorage.getItem('sm-reload-state');
+    if (!raw) return;
+    sessionStorage.removeItem('sm-reload-state');
+    const saved = JSON.parse(raw);
+    if (typeof saved.q === 'string') $('search-input').value = saved.q;
+    if (saved.filter) {
+      currentFilter = saved.filter;
+      document.querySelectorAll('.filter-tabs .tab').forEach((x) => x.classList.toggle('active', x.dataset.filter === currentFilter));
+    }
+    renderServices();
+    if (saved.activeServiceId) {
+      openDrawer(saved.activeServiceId, saved.activeDrawerTab || 'ai');
+    }
+  } catch {}
+}
+
 bindEvents();
-loadState(false).then(connectSSE).catch((err) => showToast(err.message));
+loadState(false).then(() => {
+  restoreHotReloadUIState();
+  connectSSE();
+}).catch((err) => showToast(err.message));

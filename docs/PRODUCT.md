@@ -62,8 +62,18 @@
 * **Visual / UI Behavior:** Header bar includes Stack Preset quick chips with live `active/total` badges, `Start`, `Stop`, `Edit`, and `✕` actions (opening the ordered checklist modal pre-filled for editing), Light/Dark/System theme toggle, and tray background option; Desktop shortcut launches/focuses the GUI seamlessly.
 * **Code Anchors (Grep Targets):**
   * `internal/branding/logo.go` -> `SVG`, `ICO`, `PNG`
-  * `internal/tray/tray_windows.go` -> `InstallDesktopShortcut`
+  * `internal/tray/tray_windows.go` -> `InstallDesktopShortcut`, `InstallDevDesktopShortcut`
   * `internal/cli/cli.go` -> `Run`
+
+### [FEATURE: Live-WebUI-HotReload-And-Dev-Shortcut] | Aliases: hot-reload, go run, live web ui, dev shortcut, browser tab
+> **1-Line Summary:** Serves `internal/webui/static` directly from the local repo with SSE auto-refresh on file edits, paired with a hidden `go run` dev launcher and a second `Server Manager (Hot-Reload).lnk` Desktop shortcut.
+* **User Intention (Non-Negotiable):** Edit Web UI HTML/CSS/JS with zero `.exe` rebuilds and without killing running child servers, launch the latest Go backend from source in one Desktop click via `Server Manager (Hot-Reload).lnk`, and jump to a normal browser tab via the topbar status pill.
+* **Visual / UI Behavior:** Topbar shows a green `Hot-Reload On · Browser ↗` indicator pill whenever live disk Web UI serving is active (clicking opens `http://127.0.0.1:8790` in a browser tab); saving any file in `internal/webui/static` automatically reloads open tabs while preserving the active search/filter/drawer state.
+* **Code Anchors (Grep Targets):**
+  * `internal/config/config.go` -> `ResolveRepoDir`
+  * `internal/server/server.go` -> `resolveLiveWebUIDir`, `watchLiveWebUIDir`, `serveIndexWithSession`
+  * `internal/supervisor/manager.go` -> `EmitUIReload`
+  * `start-dev.bat` / `start-dev-hidden.vbs`
 
 ### [FEATURE: Windows-Startup-And-TaskManager-Audit] | Aliases: windows startup, autostart, startup folder, StartupApproved, launch-service
 > **1-Line Summary:** Toggles per-service and self Windows Startup `.lnk` shortcuts silently via `--launch-service` or hidden `.vbs` launchers while detecting Windows Task Manager disabled states.

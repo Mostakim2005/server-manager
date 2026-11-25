@@ -182,6 +182,8 @@ flowchart LR
   1. Use `+ Add Project` (with optional `Analyze with AI` and custom icon override) in the Web UI, or edit `config.json` -> `scanRoots` / `customServices` under `%LOCALAPPDATA%\ServerManager\`.
 * **To customize Stack Presets:**
   1. Click `+ New Stack` or `Edit` on any stack chip in the header bar to check/uncheck services and reorder launch sequence (`Start` runs top-to-bottom; `Stop` runs bottom-to-top via `handleStacks` / `handleStackItem`).
+* **To develop with live hot-reload (zero `.exe` rebuilds):**
+  1. Launch `Desktop\Server Manager (Hot-Reload).lnk` (or `start-dev-hidden.vbs` / `start-dev.bat`), which runs `go run ./cmd/ServerManager` silently and watches `internal/webui/static` via `watchLiveWebUIDir` -> SSE `ui-reload`. Setting `SERVER_MANAGER_WEBUI_DIR=embed` forces embedded-only assets.
 * **To add a new API endpoint or CLI verb:**
   1. Register route with `d.withGuard(...)` in `internal/server/server.go` -> `Handler`.
   2. Add corresponding subcommand in `internal/cli/cli.go` -> `Run` emitting clean JSON under `--json`.

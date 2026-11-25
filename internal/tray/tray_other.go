@@ -33,3 +33,8 @@ func (c *Controller) Stop() {}
 func InstallDesktopShortcut(desktopDir, icoPath, targetExe, workDir string) (string, error) {
 	return "", errors.New("desktop shortcut installation is Windows-only")
 }
+
+// InstallDevDesktopShortcut is unsupported outside Windows.
+func InstallDevDesktopShortcut(desktopDir, icoPath, repoDir string) (string, error) {
+	return "", errors.New("desktop shortcut installation is Windows-only")
+}

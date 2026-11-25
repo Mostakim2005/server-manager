@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/Mostakim2005/server-manager/internal/security"
@@ -493,4 +494,43 @@ func SyncEcosystemRegistry(p Paths, port int, repoDir, exePath, cliPath string) 
 		_ = WriteJSONAtomic(p.RegistryMirrorPath, doc, 0o600)
 	}
 	return nil
+}
+
+// ResolveRepoDir returns the local Server Manager source repository directory when present.
+func ResolveRepoDir(p Paths, reg *EcosystemRegistry) string {
+	hasMarker := func(dir string) bool {
+		if strings.TrimSpace(dir) == "" {
+			return false
+		}
+		for _, rel := range []string{
+			filepath.Join("internal", "webui", "static", "index.html"),
+			"start-dev-hidden.vbs",
+		} {
+			if st, err := os.Stat(filepath.Join(dir, rel)); err == nil && !st.IsDir() {
+				return true
+			}
+		}
+		return false
+	}
+
+	if env := strings.TrimSpace(os.Getenv("SERVER_MANAGER_REPO_DIR")); env != "" && hasMarker(env) {
+		return filepath.Clean(env)
+	}
+	if reg != nil {
+		if sm, ok := reg.Apps["serverManager"]; ok {
+			if repo, _ := sm["repo"].(string); hasMarker(repo) {
+				return filepath.Clean(repo)
+			}
+		}
+	}
+	if p.AgenticHarnessDir != "" {
+		cand := filepath.Join(p.AgenticHarnessDir, "Server Manager")
+		if hasMarker(cand) {
+			return filepath.Clean(cand)
+		}
+	}
+	if cwd, err := os.Getwd(); err == nil && hasMarker(cwd) {
+		return filepath.Clean(cwd)
+	}
+	return ""
 }

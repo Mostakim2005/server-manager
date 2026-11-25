@@ -166,6 +166,10 @@ code, pre, .mono { font-family: "Cascadia Code", "Consolas", monospace; }
 .pill-status.online .dot { background: var(--status-success); }
 .pill-status.offline { background: var(--status-warning-soft); color: var(--status-warning-text); border-color: transparent; }
 .pill-status.offline .dot { background: var(--status-warning); }
+.pill-hotreload { text-decoration: none; }
+.pill-hotreload .ico, .pill-hotreload .ico svg { width: 13px; height: 13px; }
+.pill-hotreload.is-live { background: var(--status-success-soft); color: var(--status-success-text); border-color: transparent; }
+.pill-hotreload.is-live .dot { background: var(--status-success); }
 
 .alert-banner {
   background: var(--status-warning-soft);

@@ -176,4 +176,31 @@ func TestDaemonSecurityAndStateEndpoints(t *testing.T) {
 	if !foundUpdated {
 		t.Fatalf("updated stack not found in config")
 	}
+
+	// 7. Live disk Web UI hot-reload serving + path traversal protection.
+	liveUI := filepath.Join(tmp, "live-ui")
+	_ = os.MkdirAll(liveUI, 0o755)
+	_ = os.WriteFile(filepath.Join(liveUI, "index.html"), []byte(`<html><head></head><body><script data-sm-fouc></script></body></html>`), 0o600)
+	_ = os.WriteFile(filepath.Join(liveUI, "app.css"), []byte(`/* live css marker */`), 0o600)
+	t.Setenv("SERVER_MANAGER_WEBUI_DIR", liveUI)
+	d.Rescan()
+
+	reqCSS := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8790/app.css", nil)
+	reqCSS.Host = "127.0.0.1:8790"
+	rwCSS := httptest.NewRecorder()
+	h.ServeHTTP(rwCSS, reqCSS)
+	if rwCSS.Code != http.StatusOK || !bytes.Contains(rwCSS.Body.Bytes(), []byte("live css marker")) || rwCSS.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("expected live disk CSS with no-store, got code=%d cc=%q body=%q", rwCSS.Code, rwCSS.Header().Get("Cache-Control"), rwCSS.Body.String())
+	}
+
+	reqStateLive := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8790/api/v1/state", nil)
+	reqStateLive.Host = "127.0.0.1:8790"
+	reqStateLive.Header.Set("Authorization", "Bearer "+d.UIToken)
+	rwStateLive := httptest.NewRecorder()
+	h.ServeHTTP(rwStateLive, reqStateLive)
+	var livePayload map[string]any
+	_ = json.Unmarshal(rwStateLive.Body.Bytes(), &livePayload)
+	if hot, _ := livePayload["hotReload"].(bool); !hot {
+		t.Fatalf("expected hotReload=true when SERVER_MANAGER_WEBUI_DIR is set, got %v", livePayload["hotReload"])
+	}
 }

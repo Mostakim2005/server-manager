@@ -45,9 +45,11 @@ type Daemon struct {
 	Conflicts         []discovery.ConflictWarning
 	UIToken           string
 	Port              int
+	LiveWebUIDir      string
 	OnShutdownRequest func()
 	srv               *http.Server
 	ln                net.Listener
+	watchCancel       context.CancelFunc
 }
 
 // NewDaemon initializes Server Manager components safely.
@@ -106,6 +108,7 @@ func (d *Daemon) Rescan() []discovery.ServiceEntry {
 	}
 	d.Services = services
 	d.Conflicts = discovery.DetectConflicts(d.Services, d.Registry)
+	d.LiveWebUIDir = resolveLiveWebUIDir(d.Paths, d.Registry)
 	return append([]discovery.ServiceEntry(nil), d.Services...)
 }
 
@@ -137,6 +140,19 @@ func (d *Daemon) Start(bindAddr string) (string, error) {
 		Handler:           d.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	d.mu.RLock()
+	liveDir := d.LiveWebUIDir
+	d.mu.RUnlock()
+	if liveDir != "" {
+		wCtx, cancel := context.WithCancel(context.Background())
+		d.mu.Lock()
+		if d.watchCancel != nil {
+			d.watchCancel()
+		}
+		d.watchCancel = cancel
+		d.mu.Unlock()
+		go d.watchLiveWebUIDir(wCtx, liveDir)
+	}
 	go func() {
 		_ = d.srv.Serve(ln)
 	}()
@@ -145,6 +161,13 @@ func (d *Daemon) Start(bindAddr string) (string, error) {
 
 // Shutdown gracefully stops HTTP listeners and managed child trees.
 func (d *Daemon) Shutdown(ctx context.Context) error {
+	d.mu.Lock()
+	cancel := d.watchCancel
+	d.watchCancel = nil
+	d.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 	if d.srv != nil {
 		_ = d.srv.Shutdown(ctx)
 	}
@@ -169,6 +192,15 @@ func (d *Daemon) Handler() http.Handler {
 			return
 		}
 		if r.URL.Path == "/favicon.svg" || r.URL.Path == "/logo.svg" {
+			if liveDir := d.liveWebUIDir(); liveDir != "" {
+				logoPath := filepath.Join(liveDir, "logo.svg")
+				if raw, err := os.ReadFile(logoPath); err == nil && len(raw) > 0 {
+					w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
+					w.Header().Set("Cache-Control", "no-store")
+					_, _ = w.Write(raw)
+					return
+				}
+			}
 			w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
 			_, _ = w.Write(branding.SVG())
 			return
@@ -180,6 +212,14 @@ func (d *Daemon) Handler() http.Handler {
 		if strings.HasPrefix(r.URL.Path, "/service-icons/") {
 			d.serveServiceIcon(w, r)
 			return
+		}
+		if liveDir := d.liveWebUIDir(); liveDir != "" {
+			rel := strings.TrimPrefix(r.URL.Path, "/")
+			if target, err := security.ResolveConfinedPath(liveDir, rel); err == nil && fileExists(target) {
+				w.Header().Set("Cache-Control", "no-store")
+				http.ServeFile(w, r, target)
+				return
+			}
 		}
 		uiFS.ServeHTTP(w, r)
 	})
@@ -245,21 +285,28 @@ func (d *Daemon) withGuard(strictNoOrigin, requireAuth bool, next http.HandlerFu
 }
 
 func (d *Daemon) serveIndexWithSession(w http.ResponseWriter) {
-	sub, err := webui.Assets()
-	if err != nil {
-		http.Error(w, "Missing embedded UI", http.StatusInternalServerError)
-		return
+	var raw []byte
+	var err error
+	if liveDir := d.liveWebUIDir(); liveDir != "" {
+		raw, err = os.ReadFile(filepath.Join(liveDir, "index.html"))
 	}
-	f, err := sub.Open("index.html")
-	if err != nil {
-		http.Error(w, "Missing index.html", http.StatusInternalServerError)
-		return
-	}
-	raw, err := io.ReadAll(f)
-	_ = f.Close()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	if len(raw) == 0 || err != nil {
+		sub, serr := webui.Assets()
+		if serr != nil {
+			http.Error(w, "Missing embedded UI", http.StatusInternalServerError)
+			return
+		}
+		f, oerr := sub.Open("index.html")
+		if oerr != nil {
+			http.Error(w, "Missing index.html", http.StatusInternalServerError)
+			return
+		}
+		raw, err = io.ReadAll(f)
+		_ = f.Close()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	nonce, _ := security.GenerateToken()
@@ -342,6 +389,7 @@ func (d *Daemon) handleState(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	liveDir := d.liveWebUIDir()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"services":      services,
 		"runtime":       runtimeMap,
@@ -352,6 +400,8 @@ func (d *Daemon) handleState(w http.ResponseWriter, r *http.Request) {
 		"config":        cfg,
 		"aiReports":     cache,
 		"aiProxyStatus": aiStatus,
+		"hotReload":     liveDir != "",
+		"webUiDir":      liveDir,
 		"paths": map[string]string{
 			"desktop": d.Paths.DesktopDir,
 			"startup": d.Paths.StartupDir,
@@ -979,7 +1029,14 @@ func (d *Daemon) handleInstallShortcut(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"shortcut": lnk})
+	var devLnk string
+	d.mu.RLock()
+	reg := d.Registry
+	d.mu.RUnlock()
+	if repoDir := config.ResolveRepoDir(d.Paths, reg); repoDir != "" {
+		devLnk, _ = tray.InstallDevDesktopShortcut(d.Paths.DesktopDir, d.Paths.IconICOPath, repoDir)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"shortcut": lnk, "devShortcut": devLnk})
 }
 
 func (d *Daemon) handleStartupSelf(w http.ResponseWriter, r *http.Request) {
@@ -1129,6 +1186,12 @@ func RunForegroundDaemon(addr string, openUI bool, withTray bool) int {
 			OnInstallDesktop: func() {
 				exePath, _ := os.Executable()
 				_, _ = tray.InstallDesktopShortcut(paths.DesktopDir, paths.IconICOPath, exePath, paths.DataDir)
+				d.mu.RLock()
+				reg := d.Registry
+				d.mu.RUnlock()
+				if repoDir := config.ResolveRepoDir(paths, reg); repoDir != "" {
+					_, _ = tray.InstallDevDesktopShortcut(paths.DesktopDir, paths.IconICOPath, repoDir)
+				}
 			},
 			IsStartupEnabled: func() bool {
 				return d.StartupManager.SelfStatus().Enabled
@@ -1219,4 +1282,68 @@ func sanitizeGroupSlug(s string) string {
 		}
 	}
 	return strings.Trim(b.String(), "-")
+}
+
+func (d *Daemon) liveWebUIDir() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.LiveWebUIDir
+}
+
+func resolveLiveWebUIDir(paths config.Paths, reg *config.EcosystemRegistry) string {
+	if env := strings.TrimSpace(os.Getenv("SERVER_MANAGER_WEBUI_DIR")); env != "" {
+		if strings.EqualFold(env, "embed") || strings.EqualFold(env, "off") {
+			return ""
+		}
+		if fileExists(filepath.Join(env, "index.html")) {
+			return filepath.Clean(env)
+		}
+		return ""
+	}
+	if repo := config.ResolveRepoDir(paths, reg); repo != "" {
+		cand := filepath.Join(repo, "internal", "webui", "static")
+		if fileExists(filepath.Join(cand, "index.html")) {
+			return cand
+		}
+	}
+	return ""
+}
+
+func (d *Daemon) watchLiveWebUIDir(ctx context.Context, dir string) {
+	prev := liveDirSignature(dir)
+	ticker := time.NewTicker(450 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cur := liveDirSignature(dir)
+			if cur != "" && cur != prev {
+				prev = cur
+				if d.Supervisor != nil {
+					d.Supervisor.EmitUIReload()
+				}
+			}
+		}
+	}
+}
+
+func liveDirSignature(dir string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, de := range entries {
+		if de.IsDir() {
+			continue
+		}
+		info, ierr := de.Info()
+		if ierr != nil {
+			continue
+		}
+		fmt.Fprintf(&b, "%s:%d:%d|", de.Name(), info.Size(), info.ModTime().UnixNano())
+	}
+	return b.String()
 }
