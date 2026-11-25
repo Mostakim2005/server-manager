@@ -281,6 +281,8 @@ code, pre, .mono { font-family: "Cascadia Code", "Consolas", monospace; }
 .tag-link:hover { text-decoration: underline; }
 .tag-warn { background: var(--status-warning-soft); color: var(--status-warning-text); border-color: transparent; }
 .tag-ai { background: var(--accent-soft); color: var(--accent-soft-text); border-color: transparent; }
+.tag-startup { background: var(--status-success-soft); color: var(--status-success-text); border-color: transparent; }
+.startup-warn-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
 .svc-summary { font-size: 0.86rem; color: var(--text-secondary); flex: 1; }
 .svc-actions { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; border-top: 1px solid var(--border-subtle); }

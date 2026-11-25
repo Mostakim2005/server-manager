@@ -1,11 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/Mostakim2005/server-manager/internal/config"
@@ -64,5 +66,35 @@ func TestDaemonSecurityAndStateEndpoints(t *testing.T) {
 	}
 	if _, ok := payload["services"]; !ok {
 		t.Fatalf("state missing services key")
+	}
+	if _, ok := payload["startup"]; !ok {
+		t.Fatalf("state missing startup key")
+	}
+	if _, ok := payload["selfStartup"]; !ok {
+		t.Fatalf("state missing selfStartup key")
+	}
+
+	// 4. Startup toggle endpoint requires auth and handles temp startup folder cleanly.
+	paths.StartupDir = filepath.Join(tmp, "Startup")
+	d.Paths.StartupDir = paths.StartupDir
+	reqToggle := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8790/api/v1/startup/self", bytes.NewBufferString(`{"enabled":true}`))
+	reqToggle.Host = "127.0.0.1:8790"
+	reqToggle.Header.Set("Authorization", "Bearer "+d.UIToken)
+	rw4 := httptest.NewRecorder()
+	h.ServeHTTP(rw4, reqToggle)
+	if runtime.GOOS == "windows" {
+		if rw4.Code != http.StatusOK {
+			t.Fatalf("expected 200 toggling self startup on Windows, got %d: %s", rw4.Code, rw4.Body.String())
+		}
+		reqOff := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8790/api/v1/startup/self", bytes.NewBufferString(`{"enabled":false}`))
+		reqOff.Host = "127.0.0.1:8790"
+		reqOff.Header.Set("Authorization", "Bearer "+d.UIToken)
+		rw5 := httptest.NewRecorder()
+		h.ServeHTTP(rw5, reqOff)
+		if rw5.Code != http.StatusOK {
+			t.Fatalf("expected 200 disabling self startup on Windows, got %d: %s", rw5.Code, rw5.Body.String())
+		}
+	} else if rw4.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 on non-Windows startup toggle, got %d", rw4.Code)
 	}
 }

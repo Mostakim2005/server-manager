@@ -14,7 +14,7 @@ const ICONS = {
 };
 
 const token = document.querySelector('meta[name="sm-session"]')?.content || '';
-let state = { services: [], runtime: {}, conflicts: [], stacks: [], config: {}, aiReports: {}, aiProxyStatus: { online: false } };
+let state = { services: [], runtime: {}, startup: {}, selfStartup: { supported: true, canToggle: false, enabled: false }, conflicts: [], stacks: [], config: {}, aiReports: {}, aiProxyStatus: { online: false } };
 let currentFilter = 'all';
 let activeServiceId = null;
 let activeDrawerTab = 'ai';
@@ -166,10 +166,11 @@ async function runStack(id, action, name) {
 
 function matchesFilters(s) {
   const showUtil = $('chk-utilities').checked;
-  if (!showUtil && s.isUtility && currentFilter !== 'utility') return false;
+  if (!showUtil && s.isUtility && currentFilter !== 'utility' && currentFilter !== 'startup') return false;
 
   const rt = state.runtime?.[s.id]?.state || 'stopped';
   if (currentFilter === 'running' && rt !== 'running' && rt !== 'running_external') return false;
+  if (currentFilter === 'startup' && !state.startup?.[s.id]?.enabled) return false;
   if (currentFilter === 'server' && s.category !== 'server' && s.category !== 'registry') return false;
   if (currentFilter === 'custom' && !s.isCustom && !s.addedByAi) return false;
   if (currentFilter === 'utility' && !s.isUtility) return false;
@@ -240,6 +241,16 @@ function renderServices() {
       aiTag.className = 'tag tag-ai';
       aiTag.textContent = 'AI Explained';
       meta.appendChild(aiTag);
+    }
+    const stInfo = state.startup?.[s.id];
+    if (stInfo?.enabled) {
+      const stTag = document.createElement('span');
+      stTag.className = stInfo.taskManagerDisabled ? 'tag tag-warn' : 'tag tag-startup';
+      stTag.textContent = stInfo.taskManagerDisabled ? 'Startup (Task Mgr Off)' : 'Autostart';
+      stTag.title = stInfo.taskManagerDisabled
+        ? `Shortcut ${stInfo.shortcutName} exists, but is disabled in Windows Task Manager Startup apps`
+        : `Windows Startup shortcut: ${stInfo.shortcutName} (${stInfo.launchMode})`;
+      meta.appendChild(stTag);
     }
     if (s.conflicts?.length) {
       const wTag = document.createElement('span');
@@ -323,10 +334,69 @@ async function openDrawer(id, tab = 'ai') {
   }
 
   $('options-drawer').classList.remove('hidden');
+  renderDrawerStartup(svc);
   switchDrawerTab(tab);
 
   if (tab === 'ai') {
     await loadOrFetchAIReport(id, false);
+  }
+}
+
+function renderDrawerStartup(svc) {
+  const st = state.startup?.[svc.id] || { supported: false, canToggle: false, enabled: false };
+  const toggle = $('service-startup-toggle');
+  const badge = $('service-startup-badge');
+  const meta = $('service-startup-meta');
+  const warn = $('service-startup-warning');
+
+  toggle.checked = !!st.enabled;
+  toggle.disabled = !st.canToggle;
+  warn.classList.toggle('hidden', !st.taskManagerDisabled);
+
+  if (!st.supported) {
+    badge.className = 'tag';
+    badge.textContent = 'Windows Only';
+    meta.textContent = st.reason || 'Windows Startup shortcuts are only supported on Windows.';
+    return;
+  }
+  if (!st.canToggle) {
+    badge.className = 'tag';
+    badge.textContent = 'Unavailable';
+    meta.textContent = st.reason || 'No local start command configured.';
+    return;
+  }
+  if (st.taskManagerDisabled) {
+    badge.className = 'tag tag-warn';
+    badge.textContent = 'Task Mgr Off';
+    meta.textContent = `Shortcut ${st.shortcutName} exists in Startup folder, but Task Manager disabled it.`;
+  } else if (st.enabled) {
+    badge.className = 'tag tag-startup';
+    badge.textContent = 'Enabled';
+    meta.textContent = `Shortcut: ${st.shortcutName} · Mode: ${st.launchMode || 'silent'}`;
+  } else {
+    badge.className = 'tag';
+    badge.textContent = 'Off';
+    meta.textContent = `Will create ${st.shortcutName || 'Startup shortcut'} (${st.launchMode || 'server-manager-hidden'}).`;
+  }
+}
+
+async function toggleServiceStartup(id, enabled) {
+  const toggle = $('service-startup-toggle');
+  toggle.disabled = true;
+  try {
+    const res = await api(`/api/v1/services/${encodeURIComponent(id)}/startup`, {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    });
+    state.startup = { ...(state.startup || {}), [id]: res.status };
+    const svc = state.services.find((s) => s.id === id);
+    if (svc && activeServiceId === id) renderDrawerStartup(svc);
+    renderServices();
+    showToast(enabled ? `Enabled Windows Startup (${res.status?.shortcutName || 'shortcut'})` : 'Removed from Windows Startup');
+  } catch (e) {
+    showToast(`Startup update failed: ${e.message}`);
+    const svc = state.services.find((s) => s.id === id);
+    if (svc && activeServiceId === id) renderDrawerStartup(svc);
   }
 }
 
@@ -462,6 +532,8 @@ function bindEvents() {
     t.onclick = () => switchDrawerTab(t.dataset.dtab);
   });
   $('btn-refresh-ai').onclick = () => activeServiceId && loadOrFetchAIReport(activeServiceId, true);
+  $('service-startup-toggle').onchange = () => activeServiceId && toggleServiceStartup(activeServiceId, $('service-startup-toggle').checked);
+  $('btn-reenable-startup').onclick = () => activeServiceId && toggleServiceStartup(activeServiceId, true);
   $('btn-save-note').onclick = async () => {
     if (!activeServiceId) return;
     await api(`/api/v1/services/${encodeURIComponent(activeServiceId)}/note`, {
@@ -529,7 +601,8 @@ function bindEvents() {
   $('add-project-form').onsubmit = async (ev) => {
     ev.preventDefault();
     const ports = $('add-ports').value.split(',').map((x) => parseInt(x.trim(), 10)).filter((n) => n > 0);
-    await api('/api/v1/catalog/custom', {
+    const wantStartup = $('add-startup').checked;
+    const res = await api('/api/v1/catalog/custom', {
       method: 'POST',
       body: JSON.stringify({
         name: $('add-name').value.trim(),
@@ -543,9 +616,19 @@ function bindEvents() {
         addedByAi: !!$('ai-add-status').textContent.includes('AI pre-filled'),
       }),
     });
+    if (wantStartup && res?.saved?.id) {
+      try {
+        await api(`/api/v1/services/${encodeURIComponent(res.saved.id)}/startup`, {
+          method: 'POST',
+          body: JSON.stringify({ enabled: true }),
+        });
+      } catch (e) {
+        showToast(`Project saved, but Windows Startup failed: ${e.message}`);
+      }
+    }
     $('add-modal').classList.add('hidden');
     await loadState(false);
-    showToast('Project saved to catalog');
+    showToast(wantStartup ? 'Project saved & added to Windows Startup' : 'Project saved to catalog');
   };
 
   // New Stack Modal
@@ -581,12 +664,27 @@ function bindEvents() {
   // Settings Modal
   $('btn-settings').onclick = () => {
     const cfg = state.config || {};
+    const selfSt = state.selfStartup || {};
     $('set-autostart-ai').checked = cfg.autoStartCliProxy !== false;
+    $('set-self-startup').checked = !!selfSt.enabled;
+    $('set-self-startup').disabled = !selfSt.canToggle;
+    $('self-startup-warning').classList.toggle('hidden', !selfSt.taskManagerDisabled);
     $('set-scan-d').checked = !!cfg.includeVirtualDriveD;
     $('set-proxy-url').value = cfg.cliProxyUrl || 'http://127.0.0.1:8317';
     $('set-ai-model').value = cfg.preferredAiModel || '';
     renderRootsEditor(cfg.scanRoots || []);
     $('settings-modal').classList.remove('hidden');
+  };
+  $('btn-reenable-self-startup').onclick = async () => {
+    try {
+      const res = await api('/api/v1/startup/self', { method: 'POST', body: JSON.stringify({ enabled: true }) });
+      state.selfStartup = res.status;
+      $('set-self-startup').checked = !!res.status?.enabled;
+      $('self-startup-warning').classList.toggle('hidden', !res.status?.taskManagerDisabled);
+      showToast('Re-enabled Server Manager Windows Startup');
+    } catch (e) {
+      showToast(`Re-enable failed: ${e.message}`);
+    }
   };
   $('btn-close-settings').onclick = $('btn-cancel-settings').onclick = () => $('settings-modal').classList.add('hidden');
   $('btn-add-root').onclick = () => appendRootRow({ id: `root-${Date.now()}`, label: 'Custom Root', path: '', enabled: true, maxDepth: 3 });
@@ -607,6 +705,11 @@ function bindEvents() {
       scanRoots: roots,
     };
     await api('/api/v1/settings', { method: 'PUT', body: JSON.stringify(nextCfg) });
+    const wantSelfStartup = $('set-self-startup').checked;
+    const prevSelfStartup = !!state.selfStartup?.enabled;
+    if (state.selfStartup?.canToggle && (wantSelfStartup !== prevSelfStartup || (wantSelfStartup && state.selfStartup?.taskManagerDisabled))) {
+      await api('/api/v1/startup/self', { method: 'POST', body: JSON.stringify({ enabled: wantSelfStartup }) });
+    }
     $('settings-modal').classList.add('hidden');
     await loadState(false);
     showToast('Settings saved & rescanned');
@@ -617,6 +720,13 @@ function bindEvents() {
       showToast(`Shortcut created: ${res.shortcut}`);
     } catch (e) {
       showToast(`Shortcut failed: ${e.message}`);
+    }
+  };
+  $('btn-open-startup').onclick = async () => {
+    try {
+      await api('/api/v1/startup/open-folder', { method: 'POST' });
+    } catch (e) {
+      showToast(`Open Startup folder failed: ${e.message}`);
     }
   };
 

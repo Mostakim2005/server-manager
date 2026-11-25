@@ -14,10 +14,12 @@ flowchart TB
     User(["Desktop Shortcut / Browser / --json CLI"]):::startNode -->|Host+Origin+Bearer Guard| API["Go HTTP + SSE Server (127.0.0.1:8790)"]:::processNode
     API --> Disc["Discovery & Port Conflict Engine"]:::processNode
     API --> Sup["Supervisor (Job Objects + Ring Logs + TCP Probe)"]:::processNode
+    API --> Boot["Windows Startup Manager (.lnk + StartupApproved)"]:::processNode
     API --> AI["CLIProxyAPI Client (127.0.0.1:8317)"]:::aiNode
 
     Disc -->|reads roots + registry| FS[("Local Projects, Registry & Config JSON")]:::outputNode
     Sup -->|start/stop/logs| Proc(["Managed .bat / .cmd / .ps1 Trees"]):::outputNode
+    Boot -->|creates/removes .lnk + --launch-service| StartupDir[("Windows Startup Folder & Registry")]:::outputNode
     AI -->|auto-start if offline + prompt| Proxy(["CLIProxyAPI Antigravity Pool"]):::aiNode
 
     subgraph Legend["Legend (Color Guide)"]
@@ -105,8 +107,41 @@ flowchart LR
 * **Plain-English Walkthrough:** Starting a service executes its command with non-blocking stdin (so trailing `pause` lines never freeze shutdown), assigns the PID to a Windows Job Object, and streams stdout/stderr lines into a 500-line ring buffer broadcast over SSE. Stopping runs any paired `stop*` script first when applicable, kills the spawned process tree cleanly, and verifies the TCP port closes.
 
 * **Code Anchors (Grep Targets):**
-  * `internal/supervisor/manager.go` -> `Start`, `Stop`, `RefreshPorts`
+  * `internal/supervisor/manager.go` -> `Start`, `Stop`, `RefreshPorts`, `LaunchDetached`
   * `internal/security/job_windows.go` -> `JobSupervisor`
+
+### [FLOW: Windows-Startup-And-TaskManager-Sync] | Aliases: startup folder, lnk, StartupApproved, launch-service, tray startup
+> **1-Line Summary:** Inspects Startup `.lnk` shortcuts and `StartupApproved\StartupFolder` registry flags, toggling silent `wscript.exe` / `--launch-service` boot entries and cleaning up deleted custom services.
+* **Plain-English Walkthrough:** When reading state, `startup.Manager` hashes the `*.lnk` directory signature so PowerShell COM inspection only runs when shortcuts actually change, adopts pre-existing shortcuts such as `CLIProxyAPI.lnk`, and reads Windows' `StartupApproved\StartupFolder` binary values directly via Go registry APIs to flag items disabled in Task Manager. Enabling a service writes a `.lnk` using an existing `*-hidden.vbs` launcher if found or `ServerManager.exe --launch-service <id>` (which starts the service detached with `CREATE_NO_WINDOW` and exits immediately) while clearing any Task Manager disabled override.
+
+```mermaid
+flowchart LR
+    classDef startNode fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+    classDef processNode fill:#0f766e,stroke:#115e59,color:#ffffff
+    classDef outputNode fill:#15803d,stroke:#14532d,color:#ffffff
+    classDef warnNode fill:#b91c1c,stroke:#7f1d1d,color:#ffffff
+
+    Toggle(["User / CLI Toggles Startup"]):::startNode --> Check{"Hidden .vbs Exists?"}:::processNode
+    Check -->|Yes e.g. CLIProxyAPI| VBS["Write .lnk -> wscript.exe hidden.vbs"]:::processNode
+    Check -->|No| Runner["Write .lnk -> ServerManager.exe --launch-service"]:::processNode
+    VBS --> ClearReg["Clear StartupApproved Disabled Override"]:::processNode
+    Runner --> ClearReg
+    ClearReg --> Boot(["Silent Launch on Windows Login"]):::outputNode
+
+    RegWatch["Read StartupApproved / StartupFolder"]:::processNode -->|Odd First Byte e.g. 0x03| Warn(["Flag Disabled in Task Manager"]):::warnNode
+
+    subgraph Legend["Legend (Color Guide)"]
+        L1(["Blue = User / CLI Trigger"]):::startNode
+        L2["Teal = Shortcut & Registry Logic"]:::processNode
+        L3(["Green = Silent Boot Execution"]):::outputNode
+        L4(["Red = Task Manager Disabled Warning"]):::warnNode
+    end
+```
+
+* **Code Anchors (Grep Targets):**
+  * `internal/startup/startup.go` -> `Manager`, `Snapshot`, `SetServiceEnabled`, `SetSelfEnabled`
+  * `internal/startup/startup_windows.go` -> `ListShortcuts`, `WriteShortcut`, `IsStartupApproved`, `SetStartupApproved`
+  * `internal/cli/cli.go` -> `LaunchService`, `runStartupCLI`
 
 ## 4. Recipes: How to Add New Things Safely
 * **To add a new scan root or custom service:**

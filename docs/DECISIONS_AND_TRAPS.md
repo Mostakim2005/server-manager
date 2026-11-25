@@ -46,6 +46,38 @@ flowchart LR
 * **Code Anchors (Grep Targets):**
   * `internal/aiproxy/client.go` -> `EnsureRunning`, `GenerateReport`
 
+### [DECISION: Windows-Startup-Folder-Lnk-And-Hidden-Runner] | Aliases: Alpha 1, Bravo 1, Bravo 6, StartupApproved, emersion/go-autostart
+> **1-Line Summary:** Extended Server Manager's native `.lnk` helper with `ServerManager.exe --launch-service` and `StartupApproved` registry inspection instead of adding `go-autostart` or using Registry `Run` keys.
+* **Decision Maker:** `[DECIDED BY: HUMAN (Alpha 1 / Bravo 1 / Bravo 4-6)]`
+* **Original User Intention:** Toggle Windows Startup on and off for any service (discovered, custom-added, or Server Manager itself) without terminal popups on login, external dependencies, or breaking existing shortcuts like `CLIProxyAPI.lnk`.
+* **Options Considered:**
+  * **Option A (Rejected):** `emersion/go-autostart` (`go-ole`) or Registry `HKCU\...\Run` — `go-autostart` pulls in external COM wrappers without native `WorkingDirectory`/hidden-window fields, while Registry `Run` hides entries from the Windows Startup folder and lacks working-directory metadata.
+  * **Option B (Chosen):** Extend `internal/startup` over Windows Startup folder `.lnk` files, preferring existing `*-hidden.vbs` launchers or `ServerManager.exe --launch-service <id>` (`-H=windowsgui` + `CREATE_NO_WINDOW`), paired with `HKCU\...\StartupApproved\StartupFolder` audit via `golang.org/x/sys/windows/registry`.
+* **Visual Pivot Map (What Failed vs. What Works):**
+
+```mermaid
+flowchart LR
+    classDef failedNode fill:#b91c1c,stroke:#7f1d1d,color:#ffffff
+    classDef activeNode fill:#15803d,stroke:#14532d,color:#ffffff
+
+    subgraph Rejected["Direct .bat .lnk or External Wrapper (Rejected)"]
+        F1["Startup .lnk -> cmd.exe / .bat"]:::failedNode -->|flashes console windows / misses WorkDir| F2["Noisy login & orphaned shortcuts"]:::failedNode
+    end
+
+    subgraph Active["Native .lnk + Hidden Runner (Chosen)"]
+        A1["Startup .lnk -> ServerManager.exe --launch-service"]:::activeNode -->|detached CREATE_NO_WINDOW + StartupApproved sync| A2["Silent boot & Task Manager parity"]:::activeNode
+    end
+
+    subgraph Legend["Legend (Color Guide)"]
+        L1["Red = Rejected Approach"]:::failedNode
+        L2["Green = Active Architecture"]:::activeNode
+    end
+```
+
+* **Code Anchors (Grep Targets):**
+  * `internal/startup/startup.go` -> `SetServiceEnabled`, `SetSelfEnabled`
+  * `internal/supervisor/manager.go` -> `LaunchDetached`
+
 ---
 
 ## 2. Do-Not-Touch Engineering Landmines (Traps)
@@ -87,3 +119,12 @@ flowchart LR
 * **Why This Trap Exists (Plain English):** PowerShell/Node/Python tools choke on unexpected BOM bytes or partial writes during crashes.
 * **Protected Code Anchors (Grep Targets):**
   * `internal/config/config.go` -> `WriteAtomicNoBOM`, `WriteJSONAtomic`
+
+### [TRAP: Startup-Lnk-PowerShell-Single-Array-And-Console-Flash] | Aliases: ConvertTo-Json, CREATE_NO_WINDOW, StartupApproved, sig cache
+> **1-Line Summary:** NEVER assume PowerShell `ConvertTo-Json` emits a JSON array for 1 `.lnk` file, never spawn PowerShell on every SSE poll, and never omit `CREATE_NO_WINDOW` in `--launch-service`.
+* **Strict Rule:** **NEVER** parse `ConvertTo-Json` output as array-only (`parseShortcutListJSON` must accept both `{...}` and `[{...}]`), **NEVER** bypass `computeDirSignature` caching in `startup.Manager.snapshotShortcuts` (otherwise SSE status events spawn PowerShell repeatedly), and **NEVER** start `.bat`/`.ps1` boot shortcuts directly without `-H=windowsgui` (`ServerManager.exe --launch-service`) or a `wscript.exe` `*-hidden.vbs` wrapper.
+* **Why This Trap Exists (Plain English):** Windows PowerShell 5.1 unwraps single-element pipeline results into a JSON object instead of `[item]`, causing silent discovery misses when only one `.lnk` exists; spawning PowerShell on every UI refresh burns CPU; and direct `.bat` `.lnk` files pop up visible console windows at Windows login.
+* **Protected Code Anchors (Grep Targets):**
+  * `internal/startup/startup.go` -> `snapshotShortcuts`, `computeDirSignature`
+  * `internal/startup/startup_windows.go` -> `parseShortcutListJSON`, `IsStartupApproved`
+  * `internal/supervisor/manager.go` -> `LaunchDetached`

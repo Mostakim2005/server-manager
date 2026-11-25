@@ -22,13 +22,14 @@
 * **Structure & Doc Checks:** Validate `docs/*.md` `### [TYPE: Slug]` + `> **1-Line Summary:**` pairs and UTF-8 without BOM JSON configs
 
 ## 3. Repository Directory Structure
-* `cmd/ServerManager/` — Windowless (`-H=windowsgui`) Windows GUI tray + `--app=` launcher entrypoint
-* `cmd/server-manager/` — Headless `--json` CLI entrypoint (`list`, `status`, `start`, `stop`, `ai-report`, `conflicts`, `install-shortcut`, `quit`)
+* `cmd/ServerManager/` — Windowless (`-H=windowsgui`) Windows GUI tray, `--launch-service` hidden boot runner, and `--app=` launcher entrypoint
+* `cmd/server-manager/` — Headless `--json` CLI entrypoint (`list`, `status`, `start`, `stop`, `startup`, `ai-report`, `conflicts`, `install-shortcut`, `quit`)
 * `internal/branding/` — Embedded SVG app icon + programmatic PNG & multi-size Windows `.ico` renderer
 * `internal/config/` — Path discovery, UTF-8 no-BOM atomic writers, settings, custom entries, stack presets, AI report cache, and ecosystem registry/secrets helpers
 * `internal/security/` — Loopback bind check, Host/Origin CSRF checks, constant-time bearer auth, confined `/shared-libs/` path check, secret redaction, and Windows Job Object supervision
 * `internal/discovery/` — Multi-root `.bat`/`.cmd`/`.ps1` scanner, noise filter, paired stop-script matcher, static command/port parser, and port/registry conflict detector
-* `internal/supervisor/` — Process tree launcher, graceful/force stop, ring-buffered stdout/stderr log capture, live TCP port probe, stack orchestrator, and SSE event hub
+* `internal/startup/` — Windows Startup folder `.lnk` manager, pre-existing shortcut adoption, silent launcher routing, and `StartupApproved` Task Manager disabled-state sync
+* `internal/supervisor/` — Process tree launcher, detached hidden boot launcher, graceful/force stop, ring-buffered stdout/stderr log capture, live TCP port probe, stack orchestrator, and SSE event hub
 * `internal/aiproxy/` — `CLIProxyAPI` (`127.0.0.1:8317`) client, model discovery, hidden auto-start helper, script report prompt builder, and folder-based AI Add Project analyzer
 * `internal/tray/` — Pure-Go Win32 System Tray + Desktop shortcut `.lnk` generator
 * `internal/server/` — Loopback HTTP REST + SSE server + CLIProxy/discovery/supervisor orchestration
@@ -41,3 +42,4 @@
 * **TRAP 3:** Never hardcode a single Antigravity model ID or leak tokens into `CLIProxyAPI` prompts — see `docs/DECISIONS_AND_TRAPS.md` -> `[TRAP: CLIProxyAPI-Dynamic-Model-And-Redaction]`.
 * **TRAP 4:** Never crawl unbounded media folders (`D:\Images`, `D:\Comics`, `node_modules`, `.venv`) during script discovery — see `docs/DECISIONS_AND_TRAPS.md` -> `[TRAP: Unbounded-Media-And-VirtualDrive-Crawl]`.
 * **TRAP 5:** Never write JSON/config files with a UTF-8 BOM — see `docs/DECISIONS_AND_TRAPS.md` -> `[TRAP: UTF8-No-BOM-Atomic-Writes]`.
+* **TRAP 6:** Never assume PowerShell `ConvertTo-Json` emits an array for 1 `.lnk` or omit `computeDirSignature` caching — see `docs/DECISIONS_AND_TRAPS.md` -> `[TRAP: Startup-Lnk-PowerShell-Single-Array-And-Console-Flash]`.

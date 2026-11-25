@@ -79,6 +79,7 @@
       <div class="filter-tabs" role="tablist">
         <button class="tab active" data-filter="all" type="button">All</button>
         <button class="tab" data-filter="running" type="button">Running</button>
+        <button class="tab" data-filter="startup" type="button">Startup</button>
         <button class="tab" data-filter="server" type="button">Web GUIs</button>
         <button class="tab" data-filter="custom" type="button">Custom / AI</button>
         <button class="tab" data-filter="utility" type="button">Utilities</button>
@@ -112,6 +113,22 @@
       <div id="dtab-ai" class="drawer-body">
         <div class="meta-chips" id="drawer-meta-chips"></div>
         <div id="drawer-conflicts" class="mini-warnings hidden"></div>
+
+        <div id="startup-card-section" class="card-section">
+          <div class="section-head">
+            <h3>Windows Startup</h3>
+            <span id="service-startup-badge" class="tag">Off</span>
+          </div>
+          <label class="switch-row">
+            <input id="service-startup-toggle" type="checkbox">
+            <span>Run automatically on Windows Startup (silent background launch)</span>
+          </label>
+          <div id="service-startup-meta" class="small muted"></div>
+          <div id="service-startup-warning" class="startup-warn-row hidden">
+            <span class="tag tag-warn">Disabled in Windows Task Manager → Startup apps</span>
+            <button id="btn-reenable-startup" type="button" class="btn btn-tonal btn-xs">Re-enable in Windows</button>
+          </div>
+        </div>
 
         <div class="card-section">
           <div class="section-head">
@@ -208,6 +225,10 @@
         <label>Web UI URL (optional)
           <input id="add-weburl" placeholder="http://127.0.0.1:8080">
         </label>
+        <label class="switch-row span-2">
+          <input id="add-startup" type="checkbox">
+          <span>Run automatically on Windows Startup (silent background launch)</span>
+        </label>
         <div class="modal-foot span-2">
           <button type="button" id="btn-cancel-add" class="btn btn-ghost">Cancel</button>
           <button type="submit" class="btn btn-primary">Save Project</button>
@@ -255,6 +276,14 @@
           <span>Auto-start <code>CLIProxyAPI</code> (:8317) silently when offline on AI actions</span>
         </label>
         <label class="switch-row">
+          <input id="set-self-startup" type="checkbox">
+          <span>Run <code>Server Manager</code> silently in System Tray on Windows Startup</span>
+        </label>
+        <div id="self-startup-warning" class="startup-warn-row hidden">
+          <span class="tag tag-warn">Server Manager startup is currently disabled in Windows Task Manager</span>
+          <button id="btn-reenable-self-startup" type="button" class="btn btn-tonal btn-xs">Re-enable</button>
+        </div>
+        <label class="switch-row">
           <input id="set-scan-d" type="checkbox">
           <span>Include <code>D:\</code> Cryptomator virtual drive (bounded depth 2, excludes media folders)</span>
         </label>
@@ -272,7 +301,10 @@
         <div id="scan-roots-list" class="roots-list"></div>
 
         <div class="modal-foot space-between">
-          <button id="btn-install-shortcut" type="button" class="btn btn-tonal">Create / Refresh Desktop Shortcut</button>
+          <div class="drawer-quick-actions">
+            <button id="btn-install-shortcut" type="button" class="btn btn-tonal">Create / Refresh Desktop Shortcut</button>
+            <button id="btn-open-startup" type="button" class="btn btn-tonal">Open Startup Folder</button>
+          </div>
           <div>
             <button id="btn-cancel-settings" type="button" class="btn btn-ghost">Cancel</button>
             <button id="btn-save-settings" type="button" class="btn btn-primary">Save &amp; Rescan</button>

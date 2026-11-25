@@ -28,6 +28,7 @@ type Paths struct {
 	SharedLibrariesDir  string `json:"sharedLibrariesDir"`
 	LocalBinDir         string `json:"localBinDir"`
 	DesktopDir          string `json:"desktopDir"`
+	StartupDir          string `json:"startupDir"`
 	RegistryPrimaryPath string `json:"registryPrimaryPath"`
 	RegistryMirrorPath  string `json:"registryMirrorPath"`
 	SecretsPath         string `json:"secretsPath"`
@@ -166,6 +167,19 @@ func DiscoverPaths(overrideDataDir string) Paths {
 		}
 	}
 
+	startupDir := os.Getenv("SERVER_MANAGER_STARTUP_DIR")
+	if startupDir == "" {
+		if runtime.GOOS == "windows" {
+			appData := os.Getenv("APPDATA")
+			if appData == "" {
+				appData = filepath.Join(home, "AppData", "Roaming")
+			}
+			startupDir = filepath.Join(appData, "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
+		} else {
+			startupDir = filepath.Join(dataDir, "startup")
+		}
+	}
+
 	return Paths{
 		HomeDir:             home,
 		DataDir:             dataDir,
@@ -173,6 +187,7 @@ func DiscoverPaths(overrideDataDir string) Paths {
 		SharedLibrariesDir:  sharedDir,
 		LocalBinDir:         filepath.Join(home, ".local", "bin"),
 		DesktopDir:          filepath.Join(home, "Desktop"),
+		StartupDir:          startupDir,
 		RegistryPrimaryPath: regPrimary,
 		RegistryMirrorPath:  regMirror,
 		SecretsPath:         secretsPath,

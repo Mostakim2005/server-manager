@@ -15,9 +15,47 @@ import (
 	"github.com/Mostakim2005/server-manager/internal/aiproxy"
 	"github.com/Mostakim2005/server-manager/internal/config"
 	"github.com/Mostakim2005/server-manager/internal/discovery"
+	"github.com/Mostakim2005/server-manager/internal/startup"
 	"github.com/Mostakim2005/server-manager/internal/supervisor"
 	"github.com/Mostakim2005/server-manager/internal/tray"
 )
+
+// LaunchService starts a discovered or custom service silently and returns immediately (used by Windows Startup shortcuts).
+func LaunchService(id string, stderr io.Writer) int {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return 2
+	}
+	paths := config.DiscoverPaths("")
+	cfg, _ := config.LoadOrInitConfig(paths)
+	reg, _ := config.LoadRegistry(paths.RegistryPrimaryPath, paths.RegistryMirrorPath)
+	entries := discovery.Scan(paths, cfg, reg)
+	var match *discovery.ServiceEntry
+	for i := range entries {
+		if entries[i].ID == id {
+			match = &entries[i]
+			break
+		}
+	}
+	if match == nil {
+		if stderr != nil {
+			fmt.Fprintf(stderr, "service %q not found\n", id)
+		}
+		return 1
+	}
+	safeID := startup.SanitizeShortcutBase(id)
+	if safeID == "" {
+		safeID = "service"
+	}
+	logPath := filepath.Join(paths.LogsDir, "startup-"+safeID+".log")
+	if _, err := supervisor.LaunchDetached(*match, logPath); err != nil {
+		if stderr != nil {
+			fmt.Fprintf(stderr, "launch-service %s failed: %v\n", id, err)
+		}
+		return 1
+	}
+	return 0
+}
 
 // Run executes the Server Manager headless CLI (supporting --json per ecosystem contract).
 func Run(args []string, _ io.Reader, stdout, stderr io.Writer) int {
@@ -27,7 +65,7 @@ func Run(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	verb := args[0]
-	rest := args[1:]
+	rest, trailingJSON, trailingAll := splitKnownTrailingFlags(args[1:])
 
 	fs := flag.NewFlagSet(verb, flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -37,6 +75,8 @@ func Run(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if err := fs.Parse(rest); err != nil {
 		return 2
 	}
+	*asJSON = *asJSON || trailingJSON
+	*includeAll = *includeAll || trailingAll
 	pos := fs.Args()
 
 	paths := config.DiscoverPaths("")
@@ -209,6 +249,9 @@ func Run(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 			return "Created shortcut: " + lnk
 		})
 
+	case "startup":
+		return runStartupCLI(pos, *includeAll, *asJSON, paths, cfg, reg, stdout, stderr)
+
 	case "quit":
 		if !daemonOnline(baseURL) || sec == nil {
 			return emit(stdout, *asJSON, map[string]any{"quit": false, "reason": "daemon offline"}, func() string {
@@ -243,8 +286,133 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  stop <id> [--json]              Stop a running service / paired stop script")
 	fmt.Fprintln(w, "  ai-report <id> [--refresh]      Generate or read cached plain-English AI report")
 	fmt.Fprintln(w, "  install-shortcut [--json]       Generate ServerManager.ico and Desktop shortcut")
+	fmt.Fprintln(w, "  startup list [--all] [--json]   Inspect Windows Startup status and Task Manager locks")
+	fmt.Fprintln(w, "  startup <id|self> <on|off>      Enable or disable silent Windows Startup for a service or self")
+	fmt.Fprintln(w, "  startup open-folder [--json]    Open the Windows Startup folder")
 	fmt.Fprintln(w, "  sync-registry [--json]          Register Server Manager (:8790) in ecosystem-registry.json")
 	fmt.Fprintln(w, "  quit [--json]                   Shut down running Server Manager tray daemon")
+}
+
+func runStartupCLI(pos []string, includeAll, asJSON bool, paths config.Paths, cfg config.AppConfig, reg *config.EcosystemRegistry, stdout, stderr io.Writer) int {
+	mgr := startup.NewManager(paths)
+	if len(pos) == 0 || pos[0] == "list" || pos[0] == "status" {
+		entries := discovery.Scan(paths, cfg, reg)
+		if !includeAll {
+			filtered := entries[:0]
+			for _, e := range entries {
+				if !e.IsUtility {
+					filtered = append(filtered, e)
+				}
+			}
+			entries = filtered
+		}
+		svcMap, selfSt := mgr.Snapshot(entries)
+		if asJSON {
+			return emitJSON(stdout, map[string]any{
+				"supported":  mgr.Supported(),
+				"startupDir": paths.StartupDir,
+				"self":       selfSt,
+				"services":   svcMap,
+			})
+		}
+		printStartupLine(stdout, startup.SelfServiceID, selfSt)
+		for _, e := range entries {
+			st := svcMap[e.ID]
+			if includeAll || st.Enabled || st.TaskManagerDisabled {
+				printStartupLine(stdout, e.ID, st)
+			}
+		}
+		return 0
+	}
+
+	if pos[0] == "open-folder" {
+		if err := mgr.OpenFolder(); err != nil {
+			fmt.Fprintf(stderr, "startup open-folder failed: %v\n", err)
+			return 1
+		}
+		return emit(stdout, asJSON, map[string]any{"opened": paths.StartupDir}, func() string {
+			return "Opened Startup folder: " + paths.StartupDir
+		})
+	}
+
+	if len(pos) < 2 {
+		fmt.Fprintln(stderr, "usage: server-manager startup <id|self> <on|off> [--json]")
+		return 2
+	}
+	targetID := pos[0]
+	enable, ok := parseOnOff(pos[1])
+	if !ok {
+		fmt.Fprintf(stderr, "invalid startup action %q (expected on or off)\n", pos[1])
+		return 2
+	}
+
+	var st startup.Status
+	var err error
+	if targetID == "self" || targetID == startup.SelfServiceID {
+		st, err = mgr.SetSelfEnabled(enable)
+	} else {
+		entries := discovery.Scan(paths, cfg, reg)
+		var match *discovery.ServiceEntry
+		for i := range entries {
+			if entries[i].ID == targetID {
+				match = &entries[i]
+				break
+			}
+		}
+		if match == nil {
+			fmt.Fprintf(stderr, "service %q not found\n", targetID)
+			return 1
+		}
+		st, err = mgr.SetServiceEnabled(*match, enable)
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "startup failed: %v\n", err)
+		return 1
+	}
+	return emit(stdout, asJSON, map[string]any{"status": st}, func() string {
+		stateWord := "disabled"
+		if st.Enabled {
+			stateWord = "enabled"
+		}
+		return fmt.Sprintf("Windows Startup %s for %s (%s)", stateWord, st.ServiceID, st.ShortcutName)
+	})
+}
+
+func printStartupLine(w io.Writer, id string, st startup.Status) {
+	state := "off"
+	if st.TaskManagerDisabled {
+		state = "disabled-in-task-mgr"
+	} else if st.Enabled {
+		state = "on"
+	}
+	fmt.Fprintf(w, "%-36s %-22s mode=%-22s shortcut=%s\n", id, state, st.LaunchMode, st.ShortcutName)
+}
+
+func parseOnOff(raw string) (bool, bool) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "on", "enable", "enabled", "true", "1":
+		return true, true
+	case "off", "disable", "disabled", "false", "0":
+		return false, true
+	default:
+		return false, false
+	}
+}
+
+func splitKnownTrailingFlags(args []string) ([]string, bool, bool) {
+	kept := make([]string, 0, len(args))
+	var hasJSON, hasAll bool
+	for _, a := range args {
+		switch a {
+		case "--json", "-json":
+			hasJSON = true
+		case "--all", "-all":
+			hasAll = true
+		default:
+			kept = append(kept, a)
+		}
+	}
+	return kept, hasJSON, hasAll
 }
 
 func emit(w io.Writer, asJSON bool, payload any, textFn func() string) int {

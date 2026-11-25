@@ -22,6 +22,7 @@ import (
 	"github.com/Mostakim2005/server-manager/internal/config"
 	"github.com/Mostakim2005/server-manager/internal/discovery"
 	"github.com/Mostakim2005/server-manager/internal/security"
+	"github.com/Mostakim2005/server-manager/internal/startup"
 	"github.com/Mostakim2005/server-manager/internal/supervisor"
 	"github.com/Mostakim2005/server-manager/internal/tray"
 	"github.com/Mostakim2005/server-manager/internal/webui"
@@ -36,6 +37,7 @@ type Daemon struct {
 	Secrets           *config.EcosystemSecrets
 	AICache           config.AICache
 	Supervisor        *supervisor.Manager
+	StartupManager    *startup.Manager
 	AI                *aiproxy.Client
 	Services          []discovery.ServiceEntry
 	Conflicts         []discovery.ConflictWarning
@@ -64,18 +66,20 @@ func NewDaemon(paths config.Paths) (*Daemon, error) {
 	}
 	jobSup, _ := security.NewJobSupervisor()
 	sup := supervisor.NewManager(jobSup)
+	startupMgr := startup.NewManager(paths)
 	aiClient := aiproxy.NewClient(cfg.CLIProxyURL, paths.CLIProxyDir)
 
 	d := &Daemon{
-		Paths:      paths,
-		Config:     cfg,
-		Registry:   reg,
-		Secrets:    sec,
-		AICache:    aiCache,
-		Supervisor: sup,
-		AI:         aiClient,
-		UIToken:    tok,
-		Port:       config.DefaultPort,
+		Paths:          paths,
+		Config:         cfg,
+		Registry:       reg,
+		Secrets:        sec,
+		AICache:        aiCache,
+		Supervisor:     sup,
+		StartupManager: startupMgr,
+		AI:             aiClient,
+		UIToken:        tok,
+		Port:           config.DefaultPort,
 	}
 	d.Rescan()
 	return d, nil
@@ -176,6 +180,8 @@ func (d *Daemon) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/events", d.withGuard(false, true, d.handleSSE))
 	mux.HandleFunc("/api/v1/settings", d.withGuard(false, true, d.handleSettings))
 	mux.HandleFunc("/api/v1/install-shortcut", d.withGuard(false, true, d.handleInstallShortcut))
+	mux.HandleFunc("/api/v1/startup/self", d.withGuard(false, true, d.handleStartupSelf))
+	mux.HandleFunc("/api/v1/startup/open-folder", d.withGuard(false, true, d.handleStartupOpenFolder))
 	mux.HandleFunc("/api/v1/open-folder", d.withGuard(false, true, d.handleOpenFolder))
 	mux.HandleFunc("/api/v1/ai/status", d.withGuard(false, true, d.handleAIStatus))
 	mux.HandleFunc("/api/v1/ai/analyze-project", d.withGuard(false, true, d.handleAIAnalyzeProject))
@@ -272,11 +278,14 @@ func (d *Daemon) handleState(w http.ResponseWriter, r *http.Request) {
 	d.mu.RUnlock()
 
 	runtimeMap := d.Supervisor.StatusMap(services)
+	startupMap, selfStartup := d.StartupManager.Snapshot(services)
 	aiStatus := d.AI.Probe(r.Context())
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"services":      services,
 		"runtime":       runtimeMap,
+		"startup":       startupMap,
+		"selfStartup":   selfStartup,
 		"conflicts":     conflicts,
 		"stacks":        cfg.Stacks,
 		"config":        cfg,
@@ -284,6 +293,7 @@ func (d *Daemon) handleState(w http.ResponseWriter, r *http.Request) {
 		"aiProxyStatus": aiStatus,
 		"paths": map[string]string{
 			"desktop": d.Paths.DesktopDir,
+			"startup": d.Paths.StartupDir,
 			"dataDir": d.Paths.DataDir,
 		},
 	})
@@ -400,6 +410,24 @@ func (d *Daemon) handleServiceSubroute(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body)
 		d.handleServiceAIReport(w, r, entry, body.Force)
+	case "startup":
+		if r.Method != http.MethodPost && r.Method != http.MethodPut {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var body struct {
+			Enabled bool `json:"enabled"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		st, err := d.StartupManager.SetServiceEnabled(entry, body.Enabled)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error(), "status": st})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"status": st})
 	default:
 		http.NotFound(w, r)
 	}
@@ -539,15 +567,28 @@ func (d *Daemon) handleCustomCatalogItem(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	d.mu.Lock()
+	var removed *config.CustomService
 	filtered := d.Config.CustomServices[:0]
 	for _, cs := range d.Config.CustomServices {
-		if cs.ID != id {
-			filtered = append(filtered, cs)
+		if cs.ID == id {
+			cp := cs
+			removed = &cp
+			continue
 		}
+		filtered = append(filtered, cs)
 	}
 	d.Config.CustomServices = filtered
 	_ = config.SaveConfig(d.Paths, d.Config)
 	d.mu.Unlock()
+	if removed != nil && d.StartupManager != nil && d.StartupManager.Supported() {
+		_, _ = d.StartupManager.SetServiceEnabled(discovery.ServiceEntry{
+			ID:         removed.ID,
+			Name:       removed.Name,
+			ScriptPath: removed.ScriptPath,
+			WorkingDir: removed.WorkingDir,
+			StartCmd:   removed.StartCmd,
+		}, false)
+	}
 	d.Rescan()
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": id})
 }
@@ -707,6 +748,38 @@ func (d *Daemon) handleInstallShortcut(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"shortcut": lnk})
 }
 
+func (d *Daemon) handleStartupSelf(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	st, err := d.StartupManager.SetSelfEnabled(body.Enabled)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error(), "status": st})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": st})
+}
+
+func (d *Daemon) handleStartupOpenFolder(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := d.StartupManager.OpenFolder(); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"opened": d.Paths.StartupDir})
+}
+
 func (d *Daemon) handleOpenFolder(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -822,6 +895,12 @@ func RunForegroundDaemon(addr string, openUI bool, withTray bool) int {
 			OnInstallDesktop: func() {
 				exePath, _ := os.Executable()
 				_, _ = tray.InstallDesktopShortcut(paths.DesktopDir, paths.IconICOPath, exePath, paths.DataDir)
+			},
+			IsStartupEnabled: func() bool {
+				return d.StartupManager.SelfStatus().Enabled
+			},
+			OnToggleStartup: func(enable bool) {
+				_, _ = d.StartupManager.SetSelfEnabled(enable)
 			},
 			OnQuit: triggerStop,
 		})

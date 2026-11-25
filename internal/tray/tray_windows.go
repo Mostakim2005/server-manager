@@ -58,6 +58,7 @@ const (
 	nifIcon        = 0x00000002
 	nifTip         = 0x00000004
 	mfString       = 0x00000000
+	mfChecked      = 0x00000008
 	mfSeparator    = 0x00000800
 	tpmBottomAlign = 0x0020
 	tpmLeftAlign   = 0x0000
@@ -66,9 +67,10 @@ const (
 	smCXSmIcon     = 49
 	iconVersion    = 0x00030000
 
-	cmdOpenUI       = 1001
-	cmdInstallShort = 1002
-	cmdQuit         = 1003
+	cmdOpenUI        = 1001
+	cmdInstallShort  = 1002
+	cmdQuit          = 1003
+	cmdToggleStartup = 1004
 )
 
 type notifyIconData struct {
@@ -111,6 +113,8 @@ type msg struct {
 type Callbacks struct {
 	DashboardURL     string
 	OnInstallDesktop func()
+	IsStartupEnabled func() bool
+	OnToggleStartup  func(enable bool)
 	OnQuit           func()
 }
 
@@ -233,6 +237,11 @@ func wndProc(hwnd uintptr, uMsg uint32, wParam, lParam uintptr) uintptr {
 			if activeCallbacks.OnInstallDesktop != nil {
 				go activeCallbacks.OnInstallDesktop()
 			}
+		case cmdToggleStartup:
+			if activeCallbacks.OnToggleStartup != nil {
+				enabled := activeCallbacks.IsStartupEnabled != nil && activeCallbacks.IsStartupEnabled()
+				go activeCallbacks.OnToggleStartup(!enabled)
+			}
 		case cmdQuit:
 			if activeCallbacks.OnQuit != nil {
 				go activeCallbacks.OnQuit()
@@ -257,10 +266,19 @@ func showContextMenu(hwnd uintptr) {
 
 	lblOpen, _ := syscall.UTF16PtrFromString("Open Server Manager UI")
 	lblShort, _ := syscall.UTF16PtrFromString("Create / Refresh Desktop Shortcut")
+	lblStartup, _ := syscall.UTF16PtrFromString("Run Server Manager at Windows Startup")
 	lblQuit, _ := syscall.UTF16PtrFromString("Quit Server Manager")
+
+	var startupFlags uintptr = mfString
+	if activeCallbacks.IsStartupEnabled != nil && activeCallbacks.IsStartupEnabled() {
+		startupFlags |= mfChecked
+	}
 
 	procAppendMenuW.Call(hMenu, mfString, cmdOpenUI, uintptr(unsafe.Pointer(lblOpen)))
 	procAppendMenuW.Call(hMenu, mfString, cmdInstallShort, uintptr(unsafe.Pointer(lblShort)))
+	if activeCallbacks.OnToggleStartup != nil {
+		procAppendMenuW.Call(hMenu, startupFlags, cmdToggleStartup, uintptr(unsafe.Pointer(lblStartup)))
+	}
 	procAppendMenuW.Call(hMenu, mfSeparator, 0, 0)
 	procAppendMenuW.Call(hMenu, mfString, cmdQuit, uintptr(unsafe.Pointer(lblQuit)))
 

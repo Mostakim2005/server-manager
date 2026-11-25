@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -146,20 +148,10 @@ func (m *Manager) Start(entry discovery.ServiceEntry) (RuntimeStatus, error) {
 		}
 	}
 
-	cmd, err := buildExecCommand(entry)
+	cmd, err := prepareServiceCmd(entry)
 	if err != nil {
 		return RuntimeStatus{}, err
 	}
-	configureHiddenCmd(cmd)
-	if entry.WorkingDir != "" {
-		cmd.Dir = entry.WorkingDir
-	}
-	cmd.Stdin = nil
-	cmd.Env = append(cmd.Environ(),
-		"PYTHONUNBUFFERED=1",
-		"PYTHONIOENCODING=utf-8",
-		"PYTHONUTF8=1",
-	)
 
 	pr, pw := io.Pipe()
 	cmd.Stdout = pw
@@ -377,6 +369,65 @@ func (m *Manager) ShutdownAll() {
 	if m.jobSup != nil {
 		_ = m.jobSup.Close()
 	}
+}
+
+// LaunchDetached spawns a service silently in the background (for Windows Startup shortcuts) and exits immediately.
+func LaunchDetached(entry discovery.ServiceEntry, logPath string) (int, error) {
+	if strings.TrimSpace(entry.StartCmd) == "" && strings.TrimSpace(entry.ScriptPath) == "" {
+		return 0, fmt.Errorf("service %q has no start command or script path", entry.Name)
+	}
+	for _, pt := range entry.Ports {
+		if isPortOpen(pt) {
+			return 0, nil
+		}
+	}
+	cmd, err := prepareServiceCmd(entry)
+	if err != nil {
+		return 0, err
+	}
+	var logFile *os.File
+	if strings.TrimSpace(logPath) != "" {
+		if mkErr := os.MkdirAll(filepath.Dir(logPath), 0o700); mkErr == nil {
+			if f, oerr := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600); oerr == nil {
+				logFile = f
+				cmd.Stdout = f
+				cmd.Stderr = f
+			}
+		}
+	}
+	if err := cmd.Start(); err != nil {
+		if logFile != nil {
+			_ = logFile.Close()
+		}
+		return 0, fmt.Errorf("launch %s: %w", entry.Name, err)
+	}
+	if logFile != nil {
+		_ = logFile.Close()
+	}
+	pid := 0
+	if cmd.Process != nil {
+		pid = cmd.Process.Pid
+		_ = cmd.Process.Release()
+	}
+	return pid, nil
+}
+
+func prepareServiceCmd(entry discovery.ServiceEntry) (*exec.Cmd, error) {
+	cmd, err := buildExecCommand(entry)
+	if err != nil {
+		return nil, err
+	}
+	configureHiddenCmd(cmd)
+	if entry.WorkingDir != "" {
+		cmd.Dir = entry.WorkingDir
+	}
+	cmd.Stdin = nil
+	cmd.Env = append(cmd.Environ(),
+		"PYTHONUNBUFFERED=1",
+		"PYTHONIOENCODING=utf-8",
+		"PYTHONUTF8=1",
+	)
+	return cmd, nil
 }
 
 func buildExecCommand(entry discovery.ServiceEntry) (*exec.Cmd, error) {

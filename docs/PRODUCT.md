@@ -51,12 +51,22 @@
 * **Visual / UI Behavior:** Header bar includes Stack Preset quick pills, Light/Dark/System theme toggle, and tray background option; Desktop shortcut launches/focuses the GUI seamlessly.
 * **Code Anchors (Grep Targets):**
   * `internal/branding/logo.go` -> `SVG`, `ICO`, `PNG`
-  * `internal/tray/shortcut_windows.go` -> `InstallDesktopShortcut`
+  * `internal/tray/tray_windows.go` -> `InstallDesktopShortcut`
   * `internal/cli/cli.go` -> `Run`
+
+### [FEATURE: Windows-Startup-And-TaskManager-Audit] | Aliases: windows startup, autostart, startup folder, StartupApproved, launch-service
+> **1-Line Summary:** Toggles per-service and self Windows Startup `.lnk` shortcuts silently via `--launch-service` or hidden `.vbs` launchers while detecting Windows Task Manager disabled states.
+* **User Intention (Non-Negotiable):** Turn Windows Startup on or off for any discovered, custom-added, or registry service (plus Server Manager itself) directly from the dashboard, `+ Add Project` modal, tray menu, or CLI—without flashing black console windows on login or losing sync with existing shortcuts like `CLIProxyAPI.lnk`.
+* **Visual / UI Behavior:** Service cards display `Autostart` (or amber `Startup (Task Mgr Off)` warnings when Windows Task Manager disabled the entry), a `Startup` filter tab lists autostart services, the **Options** drawer includes a `Run automatically on Windows Startup` toggle plus a `Re-enable in Windows` button, `+ Add Project` includes an autostart checkbox, and **Settings** provides a Server Manager tray-startup toggle and `Open Startup Folder` button.
+* **Code Anchors (Grep Targets):**
+  * `internal/startup/startup.go` -> `Manager`, `Snapshot`, `SetServiceEnabled`, `SetSelfEnabled`
+  * `internal/supervisor/manager.go` -> `LaunchDetached`
+  * `cmd/ServerManager/main.go` -> `main`
+  * `internal/server/server.go` -> `handleServiceSubroute`, `handleStartupSelf`, `handleStartupOpenFolder`
 
 ## 3. Planned Features & App-Merge Wishlist
 
-### [WISHLIST: Scheduled-Health-Checks-And-Autostart-Profiles] | Aliases: autostart, scheduled startup, wake on boot
-> **1-Line Summary:** Optional per-service auto-start-with-Server-Manager toggle and periodic health alerts when a pinned background daemon unexpectedly exits.
-* **User Intention:** Keep core background services like `CLIProxyAPI` or `RAG Manager` resilient without adding heavy Windows Task Scheduler clutter until needed.
+### [WISHLIST: Scheduled-Health-Checks-And-Autostart-Profiles] | Aliases: health checks, crash restart, daemon monitor
+> **1-Line Summary:** Optional periodic health checks and automatic crash-recovery restarts when a pinned background daemon unexpectedly exits mid-session.
+* **User Intention:** Keep core background services like `CLIProxyAPI` or `RAG Manager` resilient after boot with periodic port/process watchdogs (complementing the active Windows Startup `.lnk` feature).
 * **Target Integration Point:** `internal/supervisor/manager.go` -> `Manager`

@@ -8,6 +8,8 @@ import "errors"
 type Callbacks struct {
 	DashboardURL     string
 	OnInstallDesktop func()
+	IsStartupEnabled func() bool
+	OnToggleStartup  func(enable bool)
 	OnQuit           func()
 }
 
