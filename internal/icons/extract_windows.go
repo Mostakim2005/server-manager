@@ -74,8 +74,8 @@ func extractExecutableIconPNG(exePath string) ([]byte, error) {
 	ret, _, callErr := procPrivateExtract.Call(
 		uintptr(unsafe.Pointer(pathPtr)),
 		0,
-		uintptr((iconSize<<16)|iconSize),
-		uintptr((iconSize<<16)|iconSize),
+		uintptr(iconSize),
+		uintptr(iconSize),
 		uintptr(unsafe.Pointer(&hIcon)),
 		uintptr(unsafe.Pointer(&iconID)),
 		1,

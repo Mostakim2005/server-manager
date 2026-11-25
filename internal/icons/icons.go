@@ -220,7 +220,13 @@ func (m *Manager) resolveServiceSync(s discovery.ServiceEntry, override string, 
 		}
 	}
 
-	for _, root := range candidateProjectRoots(s, reg) {
+	if ic, ok := resolvePresetSVG(s, true); ok {
+		return ic, true
+	}
+
+	exePath := findExecutableTarget(s, reg)
+	roots := candidateProjectRoots(s, reg, exePath)
+	for _, root := range roots {
 		if path := findProjectIconFile(root); path != "" {
 			if ic, ok := readIconFile(path, "local"); ok {
 				return ic, true
@@ -228,13 +234,28 @@ func (m *Manager) resolveServiceSync(s discovery.ServiceEntry, override string, 
 		}
 	}
 
-	if exePath := findExecutableTarget(s, reg); exePath != "" {
+	if exePath != "" {
 		if ic, ok := m.resolveExeCached(exePath, "exe"); ok {
 			return ic, true
 		}
 	}
 
 	if ic, ok := m.loadCachedByPrefix("svc-" + sanitizeCacheKey(s.ID)); ok {
+		return ic, true
+	}
+
+	if scTarget := findWindowsShortcutIcon([]string{s.ProjectName, s.Name}); scTarget != "" {
+		if ic, ok := m.resolveLocalOrExeTarget(s.WorkingDir, scTarget, "local"); ok {
+			if m.cacheDir != "" && strings.HasPrefix(ic.ContentType, "image/") {
+				if _, ext, dok := detectImageType(ic.Data, ic.ContentType, scTarget); dok {
+					_ = m.writeCachedFile("svc-"+sanitizeCacheKey(s.ID), ext, ic.Data)
+				}
+			}
+			return ic, true
+		}
+	}
+
+	if ic, ok := resolvePresetSVG(s, false); ok {
 		return ic, true
 	}
 	return ResolvedIcon{}, false
@@ -416,7 +437,7 @@ func cachedSourceFromPrefix(prefix string) string {
 	return "favicon"
 }
 
-func candidateProjectRoots(s discovery.ServiceEntry, reg *config.EcosystemRegistry) []string {
+func candidateProjectRoots(s discovery.ServiceEntry, reg *config.EcosystemRegistry, exePath string) []string {
 	var roots []string
 	seen := map[string]bool{}
 	add := func(p string) {
@@ -432,6 +453,9 @@ func candidateProjectRoots(s discovery.ServiceEntry, reg *config.EcosystemRegist
 		}
 	}
 	add(s.WorkingDir)
+	if exePath != "" {
+		add(filepath.Dir(exePath))
+	}
 	if s.ScriptPath != "" {
 		dir := filepath.Dir(s.ScriptPath)
 		add(dir)
@@ -448,7 +472,8 @@ func candidateProjectRoots(s discovery.ServiceEntry, reg *config.EcosystemRegist
 	if reg != nil {
 		slug := sanitizeSlug(s.ProjectName)
 		for k, meta := range reg.Apps {
-			if sanitizeSlug(k) == slug {
+			kSlug := sanitizeSlug(k)
+			if kSlug == slug || (kSlug == "obsidian" && strings.Contains(slug, "obsidian")) {
 				if repo, _ := meta["repo"].(string); repo != "" {
 					add(repo)
 				}
@@ -515,7 +540,8 @@ func findExecutableTarget(s discovery.ServiceEntry, reg *config.EcosystemRegistr
 	if reg != nil {
 		slug := sanitizeSlug(s.ProjectName)
 		for k, meta := range reg.Apps {
-			if sanitizeSlug(k) == slug {
+			kSlug := sanitizeSlug(k)
+			if kSlug == slug || (kSlug == "obsidian" && strings.Contains(slug, "obsidian")) {
 				if exe, _ := meta["executable"].(string); exe != "" {
 					if hit := checkCandidate(exe); hit != "" {
 						return hit
