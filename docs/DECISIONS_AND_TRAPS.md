@@ -96,7 +96,7 @@ flowchart LR
 * **Original User Intention:** Avoid rebuilding `.exe` binaries after UI or small fixes and launch Server Manager as a hot-loaded Web GUI from the Desktop.
 * **Options Considered:**
   * **Option A (Rejected):** Installing an external Go file watcher (`air`) that restarts the Go backend process on any edit (which would interrupt active managed child processes) or overwriting the production `.exe` Desktop shortcut.
-  * **Option B (Chosen):** Auto-resolve `internal/webui/static` via `config.ResolveRepoDir`, serve disk assets with `Cache-Control: no-store` and pure-Go `450ms` mtime polling emitting `ui-reload` over SSE, and add a second `Server Manager (Hot-Reload).lnk` Desktop shortcut invoking `start-dev-hidden.vbs` -> `go run -ldflags="-H=windowsgui" ./cmd/ServerManager`.
+  * **Option B (Chosen):** Auto-resolve `internal/webui/static` via `config.ResolveRepoDir`, serve disk assets with `Cache-Control: no-store` and pure-Go `450ms` mtime polling emitting `ui-reload` over SSE, and add a second `Server Manager (Hot-Reload).lnk` Desktop shortcut invoking `start-dev-hidden.vbs` -> `start-dev.bat` (builds/runs `ServerManager-dev.exe` from latest source without locking log files, or focuses the Web UI immediately if already running).
 * **Code Anchors (Grep Targets):**
   * `internal/server/server.go` -> `resolveLiveWebUIDir`, `watchLiveWebUIDir`
   * `internal/tray/tray_windows.go` -> `InstallDevDesktopShortcut`

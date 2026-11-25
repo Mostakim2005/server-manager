@@ -365,7 +365,7 @@ func InstallDevDesktopShortcut(desktopDir, icoPath, repoDir string) (string, err
 		wscriptExe = "wscript.exe"
 	}
 	lnkPath := filepath.Join(resolvedDesktop, "Server Manager (Hot-Reload).lnk")
-	args := fmt.Sprintf(`//B "%s"`, vbsPath)
+	args := fmt.Sprintf(`"%s"`, vbsPath)
 	return lnkPath, writeWindowsShortcut(lnkPath, wscriptExe, args, repoDir, icoPath, "Server Manager (Hot-Reload Dev Mode) — Latest Go & Live Web UI")
 }
 

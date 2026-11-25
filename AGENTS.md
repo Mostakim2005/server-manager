@@ -35,7 +35,7 @@
 * `internal/tray/` — Pure-Go Win32 System Tray + Desktop shortcut `.lnk` generator
 * `internal/server/` — Loopback HTTP REST + SSE server + CLIProxy/discovery/supervisor orchestration
 * `internal/webui/` — Embedded static Web UI (`static/index.html`, `app.css`, `app.js`, `logo.svg`), optionally live-served from disk with SSE hot-reload via `ResolveRepoDir` / `SERVER_MANAGER_WEBUI_DIR`
-* `start-dev.bat` / `start-dev-hidden.vbs` — Silent `go run ./cmd/ServerManager` dev launcher for `Desktop\Server Manager (Hot-Reload).lnk`
+* `start-dev.bat` / `start-dev-hidden.vbs` — Silent build-and-run dev launcher for `Desktop\Server Manager (Hot-Reload).lnk`
 * `docs/` — Living Markdown docs (`PRODUCT.md`, `ARCHITECTURE.md`, `DECISIONS_AND_TRAPS.md`). Scan with `grep -A 1 "^### \[" docs/`.
 
 ## 4. Critical Trap Pointers (1-Line Warnings Only)
