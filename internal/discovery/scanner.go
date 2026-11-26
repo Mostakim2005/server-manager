@@ -24,35 +24,37 @@ type ConflictWarning struct {
 
 // ServiceEntry represents a discovered or custom launcher/service card.
 type ServiceEntry struct {
-	ID              string            `json:"id"`
-	Name            string            `json:"name"`
-	ProjectName     string            `json:"projectName"`
-	Category        string            `json:"category"`   // "server" | "desktop" | "utility" | "registry" | "custom"
-	SourceType      string            `json:"sourceType"` // "bat" | "cmd" | "ps1" | "custom" | "registry"
-	ScriptPath      string            `json:"scriptPath,omitempty"`
-	StopScriptPath  string            `json:"stopScriptPath,omitempty"`
-	WorkingDir      string            `json:"workingDir"`
-	StartCmd        string            `json:"startCmd"`
-	StopCmd         string            `json:"stopCmd,omitempty"`
-	Ports           []int             `json:"ports"`
-	WebURL          string            `json:"webUrl,omitempty"`
-	BindHost        string            `json:"bindHost,omitempty"`
-	Runtime         string            `json:"runtime"`
-	StaticSummary   string            `json:"staticSummary"`
-	UserNote        string            `json:"userNote,omitempty"`
-	ScriptHash      string            `json:"scriptHash"`
-	IsUtility       bool              `json:"isUtility"`
-	IsCustom        bool              `json:"isCustom"`
-	AddedByAI       bool              `json:"addedByAi"`
-	Tags            []string          `json:"tags,omitempty"`
-	Conflicts       []ConflictWarning `json:"conflicts,omitempty"`
-	GroupKey        string            `json:"groupKey,omitempty"`
-	GroupName       string            `json:"groupName,omitempty"`
-	AutoGroupKey    string            `json:"autoGroupKey,omitempty"`
-	VariantLabel    string            `json:"variantLabel,omitempty"`
-	HiddenDuplicate bool              `json:"hiddenDuplicate,omitempty"`
-	IconURL         string            `json:"iconUrl,omitempty"`
-	IconSource      string            `json:"iconSource,omitempty"`
+	ID                string            `json:"id"`
+	Name              string            `json:"name"`
+	ProjectName       string            `json:"projectName"`
+	Category          string            `json:"category"`   // "server" | "desktop" | "utility" | "registry" | "custom"
+	SourceType        string            `json:"sourceType"` // "bat" | "cmd" | "ps1" | "custom" | "registry"
+	ScriptPath        string            `json:"scriptPath,omitempty"`
+	StopScriptPath    string            `json:"stopScriptPath,omitempty"`
+	WorkingDir        string            `json:"workingDir"`
+	StartCmd          string            `json:"startCmd"`
+	StopCmd           string            `json:"stopCmd,omitempty"`
+	Ports             []int             `json:"ports"`
+	WebURL            string            `json:"webUrl,omitempty"`
+	BindHost          string            `json:"bindHost,omitempty"`
+	Runtime           string            `json:"runtime"`
+	StaticSummary     string            `json:"staticSummary"`
+	UserNote          string            `json:"userNote,omitempty"`
+	ScriptHash        string            `json:"scriptHash"`
+	IsUtility         bool              `json:"isUtility"`
+	IsCustom          bool              `json:"isCustom"`
+	AddedByAI         bool              `json:"addedByAi"`
+	Tags              []string          `json:"tags,omitempty"`
+	Conflicts         []ConflictWarning `json:"conflicts,omitempty"`
+	GroupKey          string            `json:"groupKey,omitempty"`
+	GroupName         string            `json:"groupName,omitempty"`
+	AutoGroupKey      string            `json:"autoGroupKey,omitempty"`
+	VariantLabel      string            `json:"variantLabel,omitempty"`
+	HiddenDuplicate   bool              `json:"hiddenDuplicate,omitempty"`
+	MissingDeps       bool              `json:"missingDeps,omitempty"`
+	MissingDepsReason string            `json:"missingDepsReason,omitempty"`
+	IconURL           string            `json:"iconUrl,omitempty"`
+	IconSource        string            `json:"iconSource,omitempty"`
 }
 
 var skipDirNames = map[string]struct{}{
@@ -70,6 +72,7 @@ var (
 	httpURLRegex    = regexp.MustCompile(`https?://(?:127\.0\.0\.1|localhost):\d{2,5}[^\s"'<>]*`)
 	titleEchoRegex  = regexp.MustCompile(`(?im)^\s*(?:title|echo)\s+(.+)$`)
 	commandEchoSkip = regexp.MustCompile(`(?i)^(@?off|=+|\s*\.?\s*|starting\b.*|done\.?)$`)
+	yamlPortRegex   = regexp.MustCompile(`^\s*port\s*:\s*(\d{2,5})\b`)
 )
 
 // Scan discovers scripts across configured roots, merges registry services and custom entries,
@@ -289,7 +292,6 @@ func parseScriptEntry(rootDir, scriptPath string) (ServiceEntry, bool) {
 
 	isUtility := isUtilityScript(lowerBase, lowerContent)
 	ports := extractPorts(content)
-	webURL := extractWebURL(content, ports)
 	bindHost := "127.0.0.1"
 	if strings.Contains(lowerContent, "0.0.0.0") {
 		bindHost = "0.0.0.0"
@@ -301,6 +303,10 @@ func parseScriptEntry(rootDir, scriptPath string) (ServiceEntry, bool) {
 	} else if strings.Contains(lowerContent, "presentationframework") || strings.Contains(lowerContent, "electron") {
 		category = "desktop"
 	}
+	if len(ports) == 0 && category == "server" {
+		ports = extractYAMLConfigPorts(filepath.Dir(scriptPath))
+	}
+	webURL := extractWebURL(content, ports)
 
 	id := slugify(projectName + "-" + stem)
 	displayName := fmt.Sprintf("%s (%s)", projectName, base)
@@ -308,23 +314,26 @@ func parseScriptEntry(rootDir, scriptPath string) (ServiceEntry, bool) {
 		displayName = projectName
 	}
 
+	missingDeps, missingReason := detectMissingNodeDeps(filepath.Dir(scriptPath), lowerContent)
 	summary := buildStaticSummary(projectName, base, runtimeLabel, ports, webURL, bindHost, content, isUtility)
 	return ServiceEntry{
-		ID:            id,
-		Name:          displayName,
-		ProjectName:   projectName,
-		Category:      category,
-		SourceType:    ext,
-		ScriptPath:    scriptPath,
-		WorkingDir:    filepath.Dir(scriptPath),
-		StartCmd:      buildScriptCommand(scriptPath),
-		Ports:         ports,
-		WebURL:        webURL,
-		BindHost:      bindHost,
-		Runtime:       runtimeLabel,
-		StaticSummary: summary,
-		ScriptHash:    hashFiles(scriptPath, ""),
-		IsUtility:     isUtility,
+		ID:                id,
+		Name:              displayName,
+		ProjectName:       projectName,
+		Category:          category,
+		SourceType:        ext,
+		ScriptPath:        scriptPath,
+		WorkingDir:        filepath.Dir(scriptPath),
+		StartCmd:          buildScriptCommand(scriptPath),
+		Ports:             ports,
+		WebURL:            webURL,
+		BindHost:          bindHost,
+		Runtime:           runtimeLabel,
+		StaticSummary:     summary,
+		ScriptHash:        hashFiles(scriptPath, ""),
+		IsUtility:         isUtility,
+		MissingDeps:       missingDeps,
+		MissingDepsReason: missingReason,
 	}, true
 }
 
@@ -544,6 +553,7 @@ func buildRegistryFallbacks(reg *config.EcosystemRegistry, existingPorts map[int
 		repo, _ := meta["repo"].(string)
 		exe, _ := meta["executable"].(string)
 		cli, _ := meta["cli"].(string)
+		var scriptPath string
 		startCmd := exe
 		if startCmd == "" && key == "ragManager" && repo != "" {
 			startCmd = "uv run rag-manager serve"
@@ -557,8 +567,17 @@ func buildRegistryFallbacks(reg *config.EcosystemRegistry, existingPorts map[int
 		if startCmd == "" && cli != "" {
 			startCmd = cli
 		}
-		summary := fmt.Sprintf("Registered ecosystem service (%s) at %s.", key, firstNonEmpty(webURL, urlStr))
 		if startCmd == "" {
+			var foundDir string
+			scriptPath, foundDir, startCmd = findInstalledLauncher(key, prettyKey(key))
+			if repo == "" && foundDir != "" {
+				repo = foundDir
+			}
+		}
+		summary := fmt.Sprintf("Registered ecosystem service (%s) at %s.", key, firstNonEmpty(webURL, urlStr))
+		if scriptPath != "" {
+			summary += fmt.Sprintf(" Launches via %s.", filepath.Base(scriptPath))
+		} else if startCmd == "" {
 			summary += " (External/app-managed — monitored by port.)"
 		}
 		out = append(out, ServiceEntry{
@@ -567,6 +586,7 @@ func buildRegistryFallbacks(reg *config.EcosystemRegistry, existingPorts map[int
 			ProjectName:   prettyKey(key),
 			Category:      "registry",
 			SourceType:    "registry",
+			ScriptPath:    scriptPath,
 			WorkingDir:    repo,
 			StartCmd:      startCmd,
 			Ports:         ports,
@@ -675,4 +695,51 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+func extractYAMLConfigPorts(dir string) []int {
+	for _, name := range []string{"config.yaml", "config.yml"} {
+		raw, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			continue
+		}
+		text := string(raw)
+		if len(text) > 32*1024 {
+			text = text[:32*1024]
+		}
+		for _, line := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "#") {
+				continue
+			}
+			if m := yamlPortRegex.FindStringSubmatch(line); len(m) == 2 {
+				if p, perr := strconv.Atoi(m[1]); perr == nil && p >= 80 && p <= 65535 {
+					return []int{p}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func detectMissingNodeDeps(scriptDir, lowerContent string) (bool, string) {
+	if !strings.Contains(lowerContent, "npx --no-install") && !strings.Contains(lowerContent, `node_modules\.bin\electron`) {
+		return false, ""
+	}
+	if strings.Contains(lowerContent, "npm install") {
+		return false, ""
+	}
+	targetDir := scriptDir
+	relLabel := "."
+	if strings.Contains(lowerContent, "%~dp0desktop") || strings.Contains(lowerContent, "cd /d desktop") || strings.Contains(lowerContent, "cd desktop") {
+		cand := filepath.Join(scriptDir, "desktop")
+		if st, err := os.Stat(cand); err == nil && st.IsDir() {
+			targetDir = cand
+			relLabel = "desktop"
+		}
+	}
+	nm := filepath.Join(targetDir, "node_modules")
+	if st, err := os.Stat(nm); err == nil && st.IsDir() {
+		return false, ""
+	}
+	return true, fmt.Sprintf("Desktop/Electron dependencies not installed (missing %s/node_modules). Run npm install inside %s/ or use the Web UI launcher instead.", relLabel, relLabel)
 }

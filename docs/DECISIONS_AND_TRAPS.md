@@ -81,12 +81,12 @@ flowchart LR
 ### [DECISION: Multi-Source-Service-Icons-And-NonDestructive-Grouping] | Aliases: Bravo 1, Bravo 3, Charlie 1, script selector, service icons
 > **1-Line Summary:** Grouped multi-script launchers in Server Manager with a persistent selector and manual Split/Group instead of rewriting external `.bat` files, paired with multi-source local/exe/cached-favicon icons and M3 monograms.
 * **Decision Maker:** `[DECIDED BY: HUMAN (Bravo 1/3/5/6, Charlie 1/4/5)]`
-* **Original User Intention:** Fix search icon text overlap, add clean per-app icons on service cards when available, and combine duplicate/variant `.bat` entries for the same server without breaking unrelated apps (like `PhysicsLab.bat` inside `AV Manager`) or external repo shortcuts.
+* **Original User Intention:** Fix search icon text overlap, add clean per-app icons on service cards when available, and combine duplicate/variant `.bat` entries for the same server (including Electron desktop wrappers like `AV Manager`'s `PhysicsLab.bat`, while surfacing missing `node_modules` clearly) without modifying external repo scripts.
 * **Options Considered:**
   * **Option A (Rejected):** Rewriting external project `.bat` files on disk into merged scripts, or strictly grouping everything by top-level folder and scanning arbitrary `.png`/`.jpg` files.
-  * **Option B (Chosen):** Non-destructive `discovery.applyGroupingAndDeduplication` (grouping by shared ports, compatible working-dir/server family, or command signature while hiding pure `.bat`/`.ps1` wrapper twins and persisting user `PreferredScripts`/`UngroupedIDs`/`ManualGroups`), paired with strict filename-targeted icon discovery, Win32 `.exe` extraction, cached loopback favicon probing, custom icon overrides, and letter monograms.
+  * **Option B (Chosen):** Non-destructive `discovery.applyGroupingAndDeduplication` (grouping by shared ports, compatible working-dir/server family, project Electron wrapper pairing, or command signature while hiding pure `.bat`/`.ps1` wrapper twins and persisting user `PreferredScripts`/`UngroupedIDs`/`ManualGroups`), paired with strict filename-targeted icon discovery, Win32 `.exe` extraction, cached loopback favicon probing, custom icon overrides, and letter monograms.
 * **Code Anchors (Grep Targets):**
-  * `internal/discovery/grouping.go` -> `applyGroupingAndDeduplication`, `shouldAutoGroup`
+  * `internal/discovery/grouping.go` -> `applyGroupingAndDeduplication`, `shouldAutoGroup`, `isElectronWrapperPair`
   * `internal/icons/icons.go` -> `Manager`, `Refresh`, `ProbeWebFaviconAsync`
   * `internal/webui/static/app.js` -> `buildServiceCards`, `renderIconTile`
 

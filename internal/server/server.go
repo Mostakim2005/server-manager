@@ -474,6 +474,16 @@ func (d *Daemon) handleServiceSubroute(w http.ResponseWriter, r *http.Request) {
 			"serviceId": id,
 			"lines":     d.Supervisor.Logs(id),
 		})
+	case "ready":
+		st := d.Supervisor.StatusFor(entry, nil)
+		ready := len(st.ActivePorts) > 0 || (len(entry.Ports) == 0 && st.State == "running")
+		writeJSON(w, http.StatusOK, map[string]any{
+			"serviceId": id,
+			"ready":     ready,
+			"state":     st.State,
+			"webUrl":    entry.WebURL,
+			"lastError": st.LastError,
+		})
 	case "source":
 		startText := readFileSafe(entry.ScriptPath, 64*1024)
 		stopText := readFileSafe(entry.StopScriptPath, 32*1024)

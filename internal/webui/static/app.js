@@ -397,6 +397,8 @@ function pickDefaultVariant(variants) {
     const lbl = (s.variantLabel || s.name || '').toLowerCase();
     let sc = 0;
     if (!lbl.includes('/')) sc += 20;
+    if (s.category === 'server') sc += 20;
+    if (s.missingDeps) sc -= 40;
     if (/^(start|run|run-st|start-server)\.(bat|cmd|ps1)/.test(lbl)) sc += 15;
     if (lbl.includes('lan')) sc -= 2;
     if ((s.ports || []).length > 0) sc += 5;
@@ -527,7 +529,13 @@ function renderServices() {
       link.href = s.webUrl;
       link.target = '_blank';
       link.rel = 'noopener';
-      link.textContent = 'Web UI ↗';
+      link.textContent = isActive ? 'Web UI ↗' : 'Start & Web UI ↗';
+      if (!isActive) {
+        link.title = (s.startCmd || s.scriptPath)
+          ? `Click to start ${s.name} and open ${s.webUrl} once ready`
+          : `${s.name} is offline and must be launched externally`;
+        link.onclick = (ev) => startAndOpenWebUI(ev, s);
+      }
       meta.appendChild(link);
     }
     if (state.aiReports?.[s.id]?.summary) {
@@ -562,7 +570,11 @@ function renderServices() {
     actions.className = 'svc-actions';
 
     if (!isActive) {
-      const bStart = mkBtn('Start', 'btn-primary btn-sm', 'play', () => svcAction(s.id, 'start'));
+      const bStart = mkBtn(s.missingDeps ? 'Missing deps' : 'Start', 'btn-primary btn-sm', 'play', () => svcAction(s.id, 'start'));
+      if (s.missingDeps) {
+        bStart.disabled = true;
+        bStart.title = s.missingDepsReason || 'Dependencies missing — check Warnings/Options';
+      }
       actions.appendChild(bStart);
     } else {
       const bStop = mkBtn('Stop', 'btn-danger btn-sm', 'stop', () => svcAction(s.id, 'stop'));
@@ -591,6 +603,78 @@ function mkBtn(label, cls, icoName, onClick) {
   b.innerHTML = `<span class="ico" data-ico="${icoName}"></span>${label}`;
   b.onclick = onClick;
   return b;
+}
+
+async function startAndOpenWebUI(ev, svc) {
+  ev.preventDefault();
+  if (!svc.startCmd && !svc.scriptPath) {
+    showToast(`${svc.name} is offline and must be launched externally.`);
+    return;
+  }
+  if (svc.missingDeps) {
+    showToast(svc.missingDepsReason || `${svc.name} is missing dependencies.`);
+    return;
+  }
+
+  const win = window.open('about:blank', '_blank');
+  const setTabMessage = (headingText, bodyText, showOpenLink = false) => {
+    if (!win || win.closed) return;
+    try {
+      const doc = win.document;
+      doc.title = `Starting ${svc.name}…`;
+      doc.body.innerHTML = '';
+      doc.body.style.cssText = 'font-family:"Segoe UI",system-ui,sans-serif;background:#0f172a;color:#f1f5f9;margin:0;padding:32px;line-height:1.5';
+      const h = doc.createElement('h2');
+      h.textContent = headingText;
+      const p = doc.createElement('p');
+      p.style.color = '#cbd5e1';
+      p.textContent = bodyText;
+      doc.body.append(h, p);
+      if (showOpenLink) {
+        const a = doc.createElement('a');
+        a.href = svc.webUrl;
+        a.textContent = `Open ${svc.webUrl} anyway ↗`;
+        a.style.cssText = 'display:inline-block;margin-top:12px;color:#93c5fd;font-weight:600';
+        doc.body.appendChild(a);
+      }
+    } catch {}
+  };
+
+  setTabMessage(`Starting ${svc.name}…`, `Waiting for ${svc.webUrl} to begin listening…`);
+  showToast(`Starting ${svc.name}…`);
+
+  try {
+    await api(`/api/v1/services/${encodeURIComponent(svc.id)}/start`, { method: 'POST' });
+    await loadState(false);
+
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      const r = await api(`/api/v1/services/${encodeURIComponent(svc.id)}/ready`);
+      if (r.ready) {
+        if (win && !win.closed) {
+          win.opener = null;
+          win.location.replace(svc.webUrl);
+        } else {
+          window.open(svc.webUrl, '_blank', 'noopener');
+        }
+        return;
+      }
+      if (r.state === 'error') {
+        throw new Error(r.lastError || 'Process exited before opening its port');
+      }
+      await new Promise((res) => setTimeout(res, 300));
+    }
+
+    setTabMessage(
+      `${svc.name} is still warming up`,
+      `Port did not open within 15s. Check Logs in Server Manager or click below once ready.`,
+      true
+    );
+    showToast(`${svc.name} started — check Logs if Web UI isn't ready yet`);
+  } catch (e) {
+    setTabMessage(`Could not start ${svc.name}`, e.message, false);
+    showToast(`Failed to start ${svc.name}: ${e.message}`);
+  }
 }
 
 async function svcAction(id, action) {

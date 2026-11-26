@@ -203,4 +203,14 @@ func TestDaemonSecurityAndStateEndpoints(t *testing.T) {
 	if hot, _ := livePayload["hotReload"].(bool); !hot {
 		t.Fatalf("expected hotReload=true when SERVER_MANAGER_WEBUI_DIR is set, got %v", livePayload["hotReload"])
 	}
+
+	// 8. Readiness check endpoint returns ready=false for stopped service.
+	reqReady := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8790/api/v1/services/demohub-run/ready", nil)
+	reqReady.Host = "127.0.0.1:8790"
+	reqReady.Header.Set("Authorization", "Bearer "+d.UIToken)
+	rwReady := httptest.NewRecorder()
+	h.ServeHTTP(rwReady, reqReady)
+	if rwReady.Code != http.StatusOK {
+		t.Fatalf("expected 200 on /ready, got %d: %s", rwReady.Code, rwReady.Body.String())
+	}
 }

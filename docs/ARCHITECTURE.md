@@ -68,8 +68,9 @@ flowchart LR
 ```
 
 * **Code Anchors (Grep Targets):**
-  * `internal/discovery/scanner.go` -> `Scan`
-  * `internal/discovery/grouping.go` -> `applyGroupingAndDeduplication`, `markDuplicateWrappers`
+  * `internal/discovery/scanner.go` -> `Scan`, `extractYAMLConfigPorts`, `detectMissingNodeDeps`
+  * `internal/discovery/grouping.go` -> `applyGroupingAndDeduplication`, `markDuplicateWrappers`, `isElectronWrapperPair`
+  * `internal/discovery/launcher_windows.go` -> `findInstalledLauncher`
   * `internal/discovery/conflicts.go` -> `DetectConflicts`
 
 ### [SUBSYSTEM: Service-Icon-Resolver-And-Cache] | Aliases: icon resolver, favicon cache, exe icon, monogram, service-icons

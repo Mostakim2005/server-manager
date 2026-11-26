@@ -212,11 +212,31 @@ func shouldAutoGroup(a, b ServiceEntry) bool {
 	}
 	dirA := strings.ToLower(filepath.Clean(a.WorkingDir))
 	dirB := strings.ToLower(filepath.Clean(b.WorkingDir))
-	if dirA != "" && dirA == dirB && compatibleAppCategories(a, b) {
+	if dirA != "" && dirA == dirB && (compatibleAppCategories(a, b) || isElectronWrapperPair(a, b)) {
 		return true
 	}
 	if a.Category == "server" && b.Category == "server" && shareCommandSignature(a, b) {
 		return true
+	}
+	return false
+}
+
+func isElectronWrapperPair(a, b ServiceEntry) bool {
+	var serverEntry, desktopEntry *ServiceEntry
+	if a.Category == "server" && b.Category == "desktop" {
+		serverEntry, desktopEntry = &a, &b
+	} else if b.Category == "server" && a.Category == "desktop" {
+		serverEntry, desktopEntry = &b, &a
+	} else {
+		return false
+	}
+	if !strings.Contains(strings.ToLower(desktopEntry.Runtime), "electron") {
+		return false
+	}
+	for _, rel := range []string{"package.json", "main.js", filepath.Join("desktop", "package.json"), filepath.Join("desktop", "main.js")} {
+		if st, err := os.Stat(filepath.Join(serverEntry.WorkingDir, rel)); err == nil && !st.IsDir() {
+			return true
+		}
 	}
 	return false
 }
@@ -303,6 +323,9 @@ func assignVariantLabels(entries []ServiceEntry) {
 		}
 		if e.BindHost == "0.0.0.0" && !strings.Contains(strings.ToLower(label), "lan") {
 			hints = append(hints, "LAN")
+		}
+		if e.MissingDeps {
+			hints = append(hints, "Missing deps")
 		}
 		if len(hints) > 0 {
 			label = fmt.Sprintf("%s (%s)", label, strings.Join(hints, " · "))

@@ -10,20 +10,21 @@
 ### [FEATURE: Multi-Root-Launcher-Discovery] | Aliases: scanner, bat, cmd, ps1, auto-discover, ecosystem registry
 > **1-Line Summary:** Scans configured folders (plus `ecosystem-registry.json`) with bounded depth and directory exclusions, pairing `start`/`stop` scripts and hiding internal build/CI scripts unless toggled.
 * **User Intention (Non-Negotiable):** Surface real web GUI and local service launchers immediately without drowning the user in `node_modules`, `gradlew.bat`, or `local-ci.ps1` files, and never hang crawling huge media trees.
-* **Visual / UI Behavior:** Dashboard grid/list shows clean service cards with category chips, detected ports, live status (`Running`, `Running (External)`, `Stopped`), and a `Show Utility/Build Scripts` filter toggle.
+* **Visual / UI Behavior:** Dashboard grid/list shows clean service cards with category chips, detected ports (including YAML-configured ports like `SillyTavern`), live status (`Running`, `Running (External)`, `Stopped`), clicking `Start & Web UI ↗` on stopped services auto-starts them before opening the UI, and a `Show Utility/Build Scripts` filter toggle.
 * **Code Anchors (Grep Targets):**
-  * `internal/discovery/scanner.go` -> `Scan`, `parseScriptEntry`, `buildRegistryFallbacks`
-  * `internal/discovery/grouping.go` -> `applyGroupingAndDeduplication`, `markDuplicateWrappers`
+  * `internal/discovery/scanner.go` -> `Scan`, `parseScriptEntry`, `buildRegistryFallbacks`, `extractYAMLConfigPorts`, `detectMissingNodeDeps`
+  * `internal/discovery/grouping.go` -> `applyGroupingAndDeduplication`, `markDuplicateWrappers`, `isElectronWrapperPair`
+  * `internal/discovery/launcher_windows.go` -> `findInstalledLauncher`
 
 ### [FEATURE: Service-Icons-And-Smart-Script-Grouping] | Aliases: service icon, favicon cache, exe icon, script selector, card grouping, split group
 > **1-Line Summary:** Resolves real project icons (local assets, `.exe` resources, Windows Start Menu `.lnk` icons, cached Web UI favicons, built-in domain SVGs for DB/Doujin/Transformer-LLM/RAG, custom overrides, or letter monograms) and consolidates multi-script apps into one card with a persistent mode selector and manual Split/Group controls.
 * **User Intention (Non-Negotiable):** Keep cards neat, uncluttered, and immediately recognizable without modifying external repo `.bat`/`.ps1` files, breaking existing Stack Presets/Startup `.lnk` IDs, or grabbing non-icon media images (`catalog/attachments`, character portraits).
-* **Visual / UI Behavior:** Every card displays a `38×38` rounded icon tile to the left of its title (and `42×42` in the Options drawer header), falling back to a tinted letter monogram when no icon exists; multi-script apps (`AV Manager` `run.bat`/`run-lan.bat`, `SillyTavern`, `DeepTutor`, `GPT MoE 3D Explainer`) merge into one card with a `Script:` dropdown showing `● Running`/`● Active`/`★ Startup` markers while unrelated apps (`PhysicsLab.bat`) stay separate; Options adds custom icon path/URL overrides and `Split to Separate Card` / `Re-join Project Group` / `Group Together` controls.
+* **Visual / UI Behavior:** Every card displays a `38×38` rounded icon tile to the left of its title (and `42×42` in the Options drawer header), falling back to a tinted letter monogram when no icon exists; multi-script apps (`AV Manager` `run.bat`/`run-lan.bat`/`PhysicsLab.bat`, `SillyTavern`, `DeepTutor`, `GPT MoE 3D Explainer`) merge into one card with a `Script:` dropdown showing `● Running`/`● Active`/`★ Startup` markers (keeping working server launchers default and flagging Electron wrappers missing `node_modules`); Options adds custom icon path/URL overrides and `Split to Separate Card` / `Re-join Project Group` / `Group Together` controls.
 * **Code Anchors (Grep Targets):**
   * `internal/icons/icons.go` -> `Manager`, `Refresh`, `ProbeWebFaviconAsync`, `ApplyCustomOverride`
-  * `internal/discovery/grouping.go` -> `applyGroupingAndDeduplication`, `shouldAutoGroup`
+  * `internal/discovery/grouping.go` -> `applyGroupingAndDeduplication`, `shouldAutoGroup`, `isElectronWrapperPair`
   * `internal/server/server.go` -> `serveServiceIcon`, `handleServiceSubroute`, `handleGroupSubroute`
-  * `internal/webui/static/app.js` -> `renderIconTile`, `buildServiceCards`, `renderServices`, `renderDrawerGrouping`
+  * `internal/webui/static/app.js` -> `renderIconTile`, `buildServiceCards`, `renderServices`, `startAndOpenWebUI`, `renderDrawerGrouping`
 
 ### [FEATURE: Process-Tree-Supervision-And-Live-Logs] | Aliases: start, stop, restart, job object, stdout, stderr, charlie 1
 > **1-Line Summary:** Launches scripts cleanly with Job Object / process-tree tracking, pairs live TCP port probing for external servers, and streams live scrolling `stdout`/`stderr` logs via SSE.

@@ -53,6 +53,13 @@ func DetectConflicts(entries []ServiceEntry, reg *config.EcosystemRegistry) []Co
 		if e.IsUtility {
 			continue
 		}
+		if e.MissingDeps && e.MissingDepsReason != "" {
+			e.Conflicts = append(e.Conflicts, ConflictWarning{
+				Severity: "warning",
+				Code:     "MISSING_DEPS",
+				Message:  e.MissingDepsReason,
+			})
+		}
 		if e.BindHost == "0.0.0.0" {
 			e.Conflicts = append(e.Conflicts, ConflictWarning{
 				Severity: "info",
