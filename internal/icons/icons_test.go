@@ -86,6 +86,7 @@ func TestLoopbackFaviconProbeAndDiskCache(t *testing.T) {
 func TestBuiltInDomainIconPresetsAndOverridePrecedence(t *testing.T) {
 	mgr := NewManager(t.TempDir())
 	entries := []discovery.ServiceEntry{
+		{ID: "av-manager-run", Name: "AV Manager", ProjectName: "AV Manager"},
 		{ID: "database-manager-start-server", Name: "Database Manager", ProjectName: "Database Manager"},
 		{ID: "doujin-manager-run-lan", Name: "Doujin Manager", ProjectName: "Doujin Manager"},
 		{ID: "gpt-moe-3d-explainer-start-server", Name: "GPT MoE 3D Explainer", ProjectName: "GPT MoE 3D Explainer"},
@@ -101,6 +102,9 @@ func TestBuiltInDomainIconPresetsAndOverridePrecedence(t *testing.T) {
 		if !ok || len(ic.Data) == 0 {
 			t.Fatalf("expected built-in/resolved icon for %s", e.ID)
 		}
+	}
+	if res["av-manager-run"].Source != "preset" {
+		t.Fatalf("expected AV Manager preset icon, got %+v", res["av-manager-run"])
 	}
 	if string(res["gpt-moe-3d-explainer-start-server"].Data) != string(res["reg-ollama"].Data) {
 		t.Fatalf("expected GPT MoE 3D Explainer and Ollama to share the transformer/LLM icon")

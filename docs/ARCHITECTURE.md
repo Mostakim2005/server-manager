@@ -75,7 +75,7 @@ flowchart LR
 
 ### [SUBSYSTEM: Service-Icon-Resolver-And-Cache] | Aliases: icon resolver, favicon cache, exe icon, monogram, service-icons
 > **1-Line Summary:** Resolves per-service icons from user overrides, targeted local project assets, Windows `.exe` resources, and asynchronous loopback Web UI favicon probes, serving them safely on `/service-icons/<id>` with monogram fallbacks.
-* **Plain-English Walkthrough:** During `Rescan`, `icons.Manager` checks custom overrides, curated domain preset SVGs (Database, Doujin/Manga, Transformer/LLM for GPT MoE & Ollama, RAG), targeted asset paths (`favicon.*`, `logo.*`, `icon.*`, `mark.*`, `app*.ico`, including app executable folders), Windows `.exe` icon extraction (`PrivateExtractIconsW` -> PNG), disk-cached favicons, and Windows Start Menu `.lnk` icons (e.g. `Suwayomi`). Whenever an active loopback service lacks an icon, `handleState` triggers an async favicon probe that caches the icon to disk and emits an SSE `status` update so cards refresh automatically without blocking UI loads.
+* **Plain-English Walkthrough:** During `Rescan`, `icons.Manager` checks custom overrides, curated domain preset SVGs (AV Manager vermilion reel, Database, Doujin/Manga, Transformer/LLM for GPT MoE & Ollama, RAG), targeted asset paths (`favicon.*`, `logo.*`, `icon.*`, `mark.*`, `app*.ico`, including app executable folders), Windows `.exe` icon extraction (`PrivateExtractIconsW` -> PNG), disk-cached favicons, and Windows Start Menu `.lnk` icons (e.g. `Suwayomi`). Whenever an active loopback service lacks an icon, `handleState` triggers an async favicon probe that caches the icon to disk and emits an SSE `status` update so cards refresh automatically without blocking UI loads.
 
 ```mermaid
 flowchart LR

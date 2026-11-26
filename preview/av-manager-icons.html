@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <script>
+    try {
+      document.querySelector('meta[name="color-scheme"]').content = localStorage.getItem('av-preview-scheme') ?? 'light dark';
+    } catch (_) {}
+  </script>
+  <title>AV Manager — Logo & Icon Concept Preview</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+
+      --surface-0: light-dark(#f6f8fc, #0b0f17);
+      --surface-1: light-dark(#ffffff, #121826);
+      --surface-2: light-dark(#edf2fa, #192234);
+      --surface-3: light-dark(#e1e8f5, #202b40);
+      --text-primary: light-dark(#111827, #f1f5f9);
+      --text-secondary: light-dark(#475569, #cbd5e1);
+      --text-muted: light-dark(#526075, #94a3b8);
+      --border-subtle: light-dark(#cbd5e1, #334155);
+      --border-strong: light-dark(#64748b, #64748b);
+      --accent: light-dark(#be123c, #fb7185);
+      --accent-soft: light-dark(#ffe4e6, #4c0519);
+      --accent-soft-text: light-dark(#881337, #fecdd3);
+      --ok-soft: light-dark(#d1fae5, #064e3b);
+      --ok-text: light-dark(#065f46, #d1fae5);
+      --warn-soft: light-dark(#fef3c7, #78350f);
+      --warn-text: light-dark(#92400e, #fef3c7);
+      --info-soft: light-dark(#e0e7ff, #312e81);
+      --info-text: light-dark(#3730a3, #e0e7ff);
+      --focus-ring: light-dark(#1d4ed8, #93c5fd);
+
+      &:has(> head > meta[name="color-scheme"][content="dark"]) {
+        color-scheme: dark;
+      }
+      &:has(> head > meta[name="color-scheme"][content="light"]) {
+        color-scheme: light;
+      }
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--surface-0);
+      color: var(--text-primary);
+      line-height: 1.45;
+      min-block-size: 100dvb;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+    svg { display: block; }
+    code, pre { font-family: "Cascadia Code", "Consolas", monospace; }
+
+    :focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: color-mix(in oklab, var(--surface-1) 92%, transparent);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border-subtle);
+      padding-block: 14px;
+      padding-inline: 24px;
+    }
+
+    .topbar-inner {
+      max-inline-size: 1360px;
+      margin-inline: auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .title-block h1 {
+      font-size: 1.15rem;
+      font-weight: 750;
+      letter-spacing: -0.01em;
+    }
+
+    .title-block p {
+      font-size: 0.84rem;
+      color: var(--text-secondary);
+      margin-block-start: 2px;
+    }
+
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .segmented {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: 4px;
+      border-radius: 10px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .seg-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 6px 11px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background-color 120ms ease, color 120ms ease;
+    }
+
+    .seg-btn[aria-pressed="true"] {
+      background: var(--surface-1);
+      color: var(--text-primary);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+    }
+
+    .shell {
+      max-inline-size: 1360px;
+      margin-inline: auto;
+      padding: 20px 24px 56px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .live-stage {
+      display: grid;
+      grid-template-columns: minmax(280px, 1.15fr) minmax(280px, 0.85fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    @media (max-width: 900px) {
+      .live-stage {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--surface-1);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .panel-head {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .palette-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .swatch-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      background: var(--surface-2);
+      color: var(--text-primary);
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .swatch-btn[aria-pressed="true"] {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--accent-soft-text);
+    }
+
+    .swatch-dot {
+      inline-size: 11px;
+      block-size: 11px;
+      border-radius: 50%;
+      border: 1px solid rgba(128, 128, 128, 0.4);
+    }
+
+    .mock-dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 10px;
+    }
+
+    .mock-svc-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .mock-svc-card.is-target {
+      background: var(--surface-1);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 30%, transparent);
+    }
+
+    .mock-svc-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .svc-icon {
+      inline-size: 38px;
+      block-size: 38px;
+      flex-shrink: 0;
+      border-radius: 10px;
+      border: 1px solid var(--border-subtle);
+      background: var(--surface-2);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+    }
+
+    .svc-icon svg {
+      inline-size: 100%;
+      block-size: 100%;
+    }
+
+    .mock-name {
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+
+    .mock-sub {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+    }
+
+    .mock-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      font-size: 0.72rem;
+    }
+
+    .pill {
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-weight: 600;
+      background: var(--surface-3);
+      color: var(--text-secondary);
+    }
+
+    .pill.ok { background: var(--ok-soft); color: var(--ok-text); }
+    .pill.warn { background: var(--warn-soft); color: var(--warn-text); }
+    .pill.explicit { background: var(--accent-soft); color: var(--accent-soft-text); }
+    .pill.niche { background: var(--info-soft); color: var(--info-text); }
+    .pill.stealth { background: var(--ok-soft); color: var(--ok-text); }
+
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .concepts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+      grid-auto-rows: auto;
+      gap: 14px;
+    }
+
+    .concept-card {
+      background: var(--surface-1);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 16px;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 12px;
+      transition: border-color 130ms ease, box-shadow 130ms ease;
+    }
+
+    .concept-card:hover {
+      border-color: var(--border-strong);
+    }
+
+    .concept-card.is-selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 26%, transparent);
+    }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .card-tag {
+      font-size: 0.74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+
+    .card-title {
+      font-size: 1.02rem;
+      font-weight: 750;
+      margin-block-start: 2px;
+    }
+
+    .preview-stage {
+      background: var(--surface-2);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .hero-icon-wrap {
+      inline-size: 88px;
+      block-size: 88px;
+      border-radius: 16px;
+      background: var(--surface-1);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      flex-shrink: 0;
+    }
+
+    .hero-icon-wrap svg {
+      inline-size: 100%;
+      block-size: 100%;
+    }
+
+    .size-ladder {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .size-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .size-box {
+      background: var(--surface-1);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3px;
+    }
+
+    .size-box.s38 { inline-size: 38px; block-size: 38px; border-radius: 10px; padding: 4px; }
+    .size-box.s24 { inline-size: 28px; block-size: 28px; border-radius: 7px; padding: 2px; }
+    .size-box.s16 { inline-size: 22px; block-size: 22px; border-radius: 6px; padding: 3px; }
+    .size-box svg { inline-size: 100%; block-size: 100%; }
+
+    .card-desc {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .card-why {
+      font-size: 0.79rem;
+      color: var(--text-muted);
+      border-inline-start: 3px solid var(--border-subtle);
+      padding-inline-start: 9px;
+    }
+
+    .card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-block-start: 4px;
+    }
+
+    .btn {
+      border: 1px solid var(--border-subtle);
+      background: var(--surface-2);
+      color: var(--text-primary);
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 650;
+      padding: 7px 12px;
+      border-radius: 9px;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      border-color: var(--border-strong);
+      background: var(--surface-3);
+    }
+
+    .btn-primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.92;
+      background: var(--accent);
+    }
+
+    .svg-source-box {
+      background: var(--surface-2);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.74rem;
+      color: var(--text-secondary);
+      overflow: auto;
+      max-block-size: 120px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (forced-colors: active) {
+      .panel, .concept-card, .mock-svc-card, .btn, .seg-btn, .swatch-btn {
+        border: 1px solid ButtonText;
+      }
+      .concept-card.is-selected, .mock-svc-card.is-target {
+        outline: 2px solid Highlight;
+      }
+      .btn-primary {
+        background: Highlight;
+        color: HighlightText;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="title-block">
+        <h1>AV Manager — Vector Icon Concept Picker</h1>
+        <p>Same 40×40 inline SVG format used in <code>internal/icons/builtins.go</code> — pick a logo + colorway and we drop its SVG straight into Go.</p>
+      </div>
+      <div class="controls-row">
+        <div class="segmented" role="group" aria-label="Color theme override">
+          <button class="seg-btn" data-scheme="light dark" aria-pressed="true">System</button>
+          <button class="seg-btn" data-scheme="light" aria-pressed="false">Light</button>
+          <button class="seg-btn" data-scheme="dark" aria-pressed="false">Dark</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="live-stage" aria-label="Interactive Server Manager context and inspector">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Live Context Inside Server Manager (Next to Neighbors)</h2>
+          <span class="pill" id="selected-badge">Alpha 1 · Selected</span>
+        </div>
+
+        <div class="mock-dashboard">
+          <article class="mock-svc-card is-target">
+            <div class="mock-svc-head">
+              <div class="svc-icon" id="live-av-icon" aria-hidden="true"></div>
+              <div>
+                <div class="mock-name">AV Manager</div>
+                <div class="mock-sub">run.bat · :8000</div>
+              </div>
+            </div>
+            <div class="mock-pills">
+              <span class="pill ok">Stopped</span>
+              <span class="pill warn">Port :8000 shared</span>
+            </div>
+          </article>
+
+          <article class="mock-svc-card">
+            <div class="mock-svc-head">
+              <div class="svc-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+                  <rect x="2" y="2" width="36" height="36" rx="10" fill="#be123c"/>
+                  <rect x="9" y="8" width="22" height="24" rx="2.5" fill="#fff1f2"/>
+                  <path d="M12 11.5h16v6.5L12 20.5z" fill="#fb7185"/>
+                  <path d="M12 22.5l7.5-1.2v7.2H12z" fill="#fda4af"/>
+                  <path d="M21.2 21l6.8-1v8.5h-6.8z" fill="#f43f5e"/>
+                  <rect x="9" y="8" width="22" height="24" rx="2.5" fill="none" stroke="#881337" stroke-width="1.4"/>
+                </svg>
+              </div>
+              <div>
+                <div class="mock-name">Doujin Manager</div>
+                <div class="mock-sub">run-lan.bat</div>
+              </div>
+            </div>
+            <div class="mock-pills">
+              <span class="pill">Neighbor Icon</span>
+            </div>
+          </article>
+
+          <article class="mock-svc-card">
+            <div class="mock-svc-head">
+              <div class="svc-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+                  <rect x="2" y="2" width="36" height="36" rx="10" fill="#1e1b4b"/>
+                  <polygon points="21,6 30,14 27,31 16,34 10,22 14,11" fill="#7c3aed"/>
+                  <polygon points="21,6 30,14 21,21 14,11" fill="#a78bfa"/>
+                  <polygon points="21,21 30,14 27,31" fill="#6d28d9"/>
+                  <polygon points="10,22 14,11 21,21 16,34" fill="#5b21b6"/>
+                </svg>
+              </div>
+              <div>
+                <div class="mock-name">Obsidian Agent Manager</div>
+                <div class="mock-sub">start.bat</div>
+              </div>
+            </div>
+            <div class="mock-pills">
+              <span class="pill">Neighbor Icon</span>
+            </div>
+          </article>
+        </div>
+
+        <div>
+          <div class="panel-title" style="margin-block-end: 6px;">Quick Colorway Preset (Applied Live to All Concepts)</div>
+          <div class="palette-bar" role="group" aria-label="Colorway presets" id="palette-bar"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title" id="inspector-name">Selected SVG Output</h2>
+          <div class="controls-row">
+            <button class="btn" id="copy-svg-btn" type="button">Copy SVG</button>
+            <button class="btn btn-primary" id="download-svg-btn" type="button">Download .svg</button>
+          </div>
+        </div>
+        <p id="inspector-caption" style="font-size: 0.84rem; color: var(--text-secondary);"></p>
+        <pre class="svg-source-box" id="svg-source-box"></pre>
+      </div>
+    </section>
+
+    <section class="filter-bar" aria-label="Filter concepts by explicitness and subtlety">
+      <div class="segmented" role="group" aria-label="Category filter">
+        <button class="seg-btn" data-filter="all" aria-pressed="true">All Concepts (9)</button>
+        <button class="seg-btn" data-filter="explicit" aria-pressed="false">Explicit JAV / 18+ (3)</button>
+        <button class="seg-btn" data-filter="niche" aria-pressed="false">Niche / IYKYK Codes (4)</button>
+        <button class="seg-btn" data-filter="stealth" aria-pressed="false">Stealth PhysicsLab (2)</button>
+      </div>
+      <span id="status-note" style="font-size: 0.82rem; color: var(--text-muted);" role="status" aria-live="polite"></span>
+    </section>
+
+    <section class="concepts-grid" id="concepts-grid" aria-label="Icon candidates"></section>
+  </main>
+
+  <script>
+    const PALETTES = {
+      signature: {
+        label: 'Signature Mix',
+        dot: '#e11d48',
+        override: null
+      },
+      nihon: {
+        label: 'NIHON Rose-Indigo',
+        dot: '#db2777',
+        override: {
+          bg1: '#be123c',
+          bg2: '#4338ca',
+          fg: '#fff1f2',
+          hi: '#fda4af',
+          mid: '#fb7185',
+          deep: '#4c0519',
+          accent: '#f43f5e'
+        }
+      },
+      crimson: {
+        label: 'Tokyo Vermilion',
+        dot: '#dc2626',
+        override: {
+          bg1: '#991b1b',
+          bg2: '#450a0a',
+          fg: '#fef2f2',
+          hi: '#fca5a5',
+          mid: '#ef4444',
+          deep: '#2b0909',
+          accent: '#fbbf24'
+        }
+      },
+      obsidian: {
+        label: 'Velvet Midnight',
+        dot: '#312e81',
+        override: {
+          bg1: '#0f172a',
+          bg2: '#1e1b4b',
+          fg: '#f8fafc',
+          hi: '#fda4af',
+          mid: '#e11d48',
+          deep: '#020617',
+          accent: '#38bdf8'
+        }
+      },
+      stealthCyan: {
+        label: 'PhysicsLab Cobalt',
+        dot: '#0284c7',
+        override: {
+          bg1: '#0f172a',
+          bg2: '#0c4a6e',
+          fg: '#f0f9ff',
+          hi: '#7dd3fc',
+          mid: '#38bdf8',
+          deep: '#082f49',
+          accent: '#f43f5e'
+        }
+      }
+    };
+
+    const CONCEPTS = [
+      {
+        id: 'alpha-1',
+        tag: 'Alpha 1',
+        tier: 'explicit',
+        tierLabel: 'Explicit JAV / 18+',
+        title: '18+ Crimson Cinema Slate',
+        desc: 'High-contrast crimson-to-wine badge topped with a tilted cinema clapper bar and bold geometric "18+" numerals + play wedge.',
+        why: 'Zero guesswork: blends adult rating signage directly with video playback and stands apart cleanly from Doujin Manager\'s comic panels.',
+        baseColors: { bg1: '#9f1239', bg2: '#4c0519', fg: '#fff1f2', hi: '#fda4af', mid: '#fb7185', deep: '#2e0612', accent: '#f43f5e' },
+        render(uid, c) {
+          return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <defs>
+    <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${c.bg1}"/>
+      <stop offset="100%" stop-color="${c.bg2}"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="36" height="36" rx="10" fill="url(#${uid})"/>
+  <path d="M6.5 11.2 L32.2 6.8 L33.2 11.5 L7.5 15.9 Z" fill="${c.deep}"/>
+  <polygon points="10,10.6 13.5,10 15.2,14.6 11.7,15.2" fill="${c.fg}"/>
+  <polygon points="18,9.2 21.5,8.6 23.2,13.2 19.7,13.8" fill="${c.hi}"/>
+  <polygon points="26,7.8 29.5,7.2 31.2,11.8 27.7,12.4" fill="${c.fg}"/>
+  <rect x="7" y="15" width="26" height="17" rx="3" fill="${c.deep}" stroke="${c.mid}" stroke-width="1.2"/>
+  <path d="M11.6 18.8 V28.2 M10.2 20.4 L11.6 18.8" stroke="${c.fg}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <rect x="15.2" y="18.8" width="5.2" height="4.4" rx="1.6" fill="none" stroke="${c.fg}" stroke-width="2"/>
+  <rect x="15.2" y="23.4" width="5.2" height="4.8" rx="1.8" fill="none" stroke="${c.fg}" stroke-width="2"/>
+  <path d="M24.2 23.5 H29.4 M26.8 20.9 V26.1" stroke="${c.hi}" stroke-width="2.2" stroke-linecap="round"/>
+  <circle cx="32.5" cy="31.5" r="4.5" fill="${c.accent}"/>
+  <polygon points="31.3,29.3 34.7,31.5 31.3,33.7" fill="#ffffff"/>
+</svg>`;
+        }
+      },
+      {
+        id: 'alpha-2',
+        tag: 'Alpha 2',
+        tier: 'explicit',
+        tierLabel: 'Explicit JAV / 18+',
+        title: 'NIHON "AV" Marquee + 18 Seal',
+        desc: 'Direct vector "AV" monogram over AV Manager\'s signature Rose-to-Indigo gradient, accented by a vermilion circular 18+ studio stamp.',
+        why: 'Matches the real NIHON UI header inside app/static/index.html while making the letters AV readable even at 38px.',
+        baseColors: { bg1: '#e11d48', bg2: '#4f46e5', fg: '#ffffff', hi: '#fecdd3', mid: '#fb7185', deep: '#1e1b4b', accent: '#dc2626' },
+        render(uid, c) {
+          return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <defs>
+    <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${c.bg1}"/>
+      <stop offset="100%" stop-color="${c.bg2}"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="36" height="36" rx="10" fill="url(#${uid})"/>
+  <line x1="6" y1="11" x2="34" y2="11" stroke="#ffffff" stroke-opacity="0.16" stroke-width="1"/>
+  <line x1="6" y1="29" x2="34" y2="29" stroke="#ffffff" stroke-opacity="0.16" stroke-width="1"/>
+  <path d="M8.5 27.5 L12.5 13.5 L16.5 27.5 M10.1 23 H14.9" stroke="${c.fg}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M19.8 13.5 L23.5 27.5 L27.2 13.5" stroke="${c.hi}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <circle cx="30.5" cy="11.5" r="5.3" fill="${c.accent}" stroke="${c.fg}" stroke-width="1.3"/>
+  <circle cx="30.5" cy="11.5" r="2.1" fill="${c.fg}"/>
+  <rect x="8.5" y="31.2" width="23" height="2.4" rx="1.2" fill="${c.fg}" fill-opacity="0.88"/>
+</svg>`;
+        }
+      },
+      {
+        id: 'alpha-3',
+        tag: 'Alpha 3',
+        tier: 'explicit',
+        tierLabel: 'Explicit JAV / 18+',
+        title: 'Japanese Vermilion Reel & Gate',
+        desc: 'Traditional Japanese hanko crimson framing vertical 35mm film sprocket holes and an illuminated red-carpet play lens at center.',
+        why: 'Overtly Japanese adult cinema without relying on text — crimson hanko red plus glowing rose lens reads immediately at 16px.',
+        baseColors: { bg1: '#b91c1c', bg2: '#7f1d1d', fg: '#fff1f2', hi: '#fecdd3', mid: '#fb7185', deep: '#270909', accent: '#f43f5e' },
+        render(uid, c) {
+          return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <defs>
+    <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${c.bg1}"/>
+      <stop offset="100%" stop-color="${c.bg2}"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="36" height="36" rx="10" fill="url(#${uid})"/>
+  <rect x="7" y="7" width="26" height="26" rx="4" fill="${c.deep}"/>
+  <g fill="${c.hi}">
+    <rect x="8.8" y="9.2" width="2.5" height="3.2" rx="0.6"/>
+    <rect x="8.8" y="15.2" width="2.5" height="3.2" rx="0.6"/>
+    <rect x="8.8" y="21.2" width="2.5" height="3.2" rx="0.6"/>
+    <rect x="8.8" y="27.2" width="2.5" height="3.2" rx="0.6"/>
+    <rect x="28.7" y="9.2" width="2.5" height="3.2" rx="0.6"/>
+    <rect x="28.7" y="15.2" width="2.5" height="3.2" rx="0.6"/>
+    <rect x="28.7" y="21.2" width="2.5" height="3.2" rx="0.6"/>
+    <rect x="28.7" y="27.2" width="2.5" height="3.2" rx="0.6"/>
+  </g>
+  <circle cx="20" cy="20" r="6.8" fill="${c.accent}"/>
+  <circle cx="20" cy="20" r="7.2" fill="none" stroke="${c.fg}" stroke-width="1.3"/>
+  <polygon points="18.3,16.6 24.1,20 18.3,23.4" fill="${c.fg}"/>
+</svg>`;
+        }
+      },
+      {
+        id: 'bravo-1',
+        tag: 'Bravo 1',
+        tier: 'niche',
+        tierLabel: 'Niche / IYKYK',
+        title: 'The Classic Mosaic Matrix',
+        desc: 'A 4x4 translucent checkerboard censor mosaic glowing behind a sharp crimson-white Play triangle on dark obsidian glass.',
+        why: 'The #1 universal "those who know, immediately know" visual pun of Japanese video — looks like a sleek video filter utility to anyone else.',
+        baseColors: { bg1: '#0f172a', bg2: '#3b0764', fg: '#ffffff', hi: '#fecdd3', mid: '#fb7185', deep: '#881337', accent: '#e11d48' },
+        render(uid, c) {
+          return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <defs>
+    <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${c.bg1}"/>
+      <stop offset="100%" stop-color="${c.bg2}"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="36" height="36" rx="10" fill="url(#${uid})" stroke="${c.accent}" stroke-opacity="0.5" stroke-width="1"/>
+  <g rx="1">
+    <rect x="8" y="8" width="5.6" height="5.6" rx="1" fill="${c.hi}" fill-opacity="0.30"/>
+    <rect x="14.1" y="8" width="5.6" height="5.6" rx="1" fill="${c.mid}" fill-opacity="0.88"/>
+    <rect x="20.2" y="8" width="5.6" height="5.6" rx="1" fill="${c.hi}" fill-opacity="0.45"/>
+    <rect x="26.3" y="8" width="5.6" height="5.6" rx="1" fill="${c.deep}" fill-opacity="0.85"/>
+    <rect x="8" y="14.1" width="5.6" height="5.6" rx="1" fill="${c.mid}" fill-opacity="0.72"/>
+    <rect x="14.1" y="14.1" width="5.6" height="5.6" rx="1" fill="${c.hi}" fill-opacity="0.92"/>
+    <rect x="20.2" y="14.1" width="5.6" height="5.6" rx="1" fill="${c.accent}" fill-opacity="0.90"/>
+    <rect x="26.3" y="14.1" width="5.6" height="5.6" rx="1" fill="${c.hi}" fill-opacity="0.38"/>
+    <rect x="8" y="20.2" width="5.6" height="5.6" rx="1" fill="${c.deep}" fill-opacity="0.85"/>
+    <rect x="14.1" y="20.2" width="5.6" height="5.6" rx="1" fill="${c.accent}" fill-opacity="0.85"/>
+    <rect x="20.2" y="20.2" width="5.6" height="5.6" rx="1" fill="${c.fg}" fill-opacity="0.85"/>
+    <rect x="26.3" y="20.2" width="5.6" height="5.6" rx="1" fill="${c.mid}" fill-opacity="0.75"/>
+    <rect x="8" y="26.3" width="5.6" height="5.6" rx="1" fill="${c.hi}" fill-opacity="0.36"/>
+    <rect x="14.1" y="26.3" width="5.6" height="5.6" rx="1" fill="${c.deep}" fill-opacity="0.88"/>
+    <rect x="20.2" y="26.3" width="5.6" height="5.6" rx="1" fill="${c.mid}" fill-opacity="0.82"/>
+    <rect x="26.3" y="26.3" width="5.6" height="5.6" rx="1" fill="${c.hi}" fill-opacity="0.30"/>
+  </g>
+  <polygon points="16.2,13.5 26.8,20 16.2,26.5" fill="${c.fg}" stroke="${c.deep}" stroke-width="1.4" stroke-linejoin="round"/>
+</svg>`;
+        }
+      },
+      {
+        id: 'bravo-2',
+        tag: 'Bravo 2',
+        tier: 'niche',
+        tierLabel: 'Niche / IYKYK',
+        title: 'Studio Catalog Code Plate (XXX-000)',
+        desc: 'Minimalist collector code card shaped around the iconic 3-block prefix + hyphen + 3-digit catalog code format on a midnight violet tile.',
+        why: 'Deep-cut insider signal (prefix-hyphen-digits catalog IDs like SSIS-001) while reading like an innocent metadata tagger to outsiders.',
+        baseColors: { bg1: '#1e1b4b', bg2: '#0f172a', fg: '#fff1f2', hi: '#fda4af', mid: '#e11d48', deep: '#4c0519', accent: '#f43f5e' },
+        render(uid, c) {
+          return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <defs>
+    <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${c.bg1}"/>
+      <stop offset="100%" stop-color="${c.bg2}"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="36" height="36" rx="10" fill="url(#${uid})"/>
+  <rect x="7" y="10.5" width="26" height="19" rx="3.2" fill="${c.fg}"/>
+  <path d="M7 13.7 a3.2 3.2 0 0 1 3.2 -3.2 h19.6 a3.2 3.2 0 0 1 3.2 3.2 v2.3 H7 Z" fill="${c.mid}"/>
+  <rect x="10" y="19.8" width="2.4" height="5.8" rx="0.8" fill="${c.deep}"/>
+  <rect x="13.2" y="19.8" width="2.4" height="5.8" rx="0.8" fill="${c.deep}"/>
+  <rect x="16.4" y="19.8" width="2.4" height="5.8" rx="0.8" fill="${c.deep}"/>
+  <rect x="19.7" y="22.1" width="2.5" height="1.6" rx="0.7" fill="${c.mid}"/>
+  <rect x="23.1" y="19.8" width="2" height="5.8" rx="0.8" fill="${c.accent}"/>
+  <rect x="25.9" y="19.8" width="2" height="5.8" rx="0.8" fill="${c.accent}"/>
+  <rect x="28.7" y="19.8" width="2" height="5.8" rx="0.8" fill="${c.accent}"/>
+  <circle cx="30" cy="29.5" r="4.5" fill="${c.accent}" stroke="${c.bg2}" stroke-width="1.4"/>
+  <polygon points="28.8,27.5 32.1,29.5 28.8,31.5" fill="#ffffff"/>
+</svg>`;
+        }
+      },
+      {
+        id: 'bravo-3',
+        tag: 'Bravo 3',
+        tier: 'niche',
+        tierLabel: 'Niche / IYKYK',
+        title: 'Japanese Obi Collector Slipcase',
+        desc: 'Physical media disc sleeve wrapped with a signature left-edge Japanese "Obi" sash and a gleaming optical disc peeking out from the right.',
+        why: 'Taps physical Japanese media collector culture + AV Manager\'s encrypted disc/vault role. Clean, tactile, and completely safe.',
+        baseColors: { bg1: '#31102f', bg2: '#1e1b4b', fg: '#fff1f2', hi: '#fbcfe8', mid: '#f43f5e', deep: '#881337', accent: '#fbbf24' },
+        render(uid, c) {
+          return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <defs>
+    <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${c.bg1}"/>
+      <stop offset="100%" stop-color="${c.bg2}"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="36" height="36" rx="10" fill="url(#${uid})"/>
+  <circle cx="25.5" cy="20" r="8.6" fill="${c.hi}" stroke="${c.fg}" stroke-width="1.2"/>
+  <circle cx="25.5" cy="20" r="2.7" fill="${c.bg2}"/>
+  <rect x="7" y="8.5" width="18.5" height="23" rx="2.4" fill="${c.fg}"/>
+  <path d="M7 10.9 a2.4 2.4 0 0 1 2.4 -2.4 h5.1 v23 h-5.1 a2.4 2.4 0 0 1 -2.4 -2.4 Z" fill="${c.mid}"/>
+  <rect x="9.5" y="12.5" width="2.6" height="10" rx="1" fill="${c.fg}"/>
+  <rect x="9.5" y="24.2" width="2.6" height="3" rx="1" fill="${c.accent}"/>
+  <polygon points="17.8,16.5 22.8,20 17.8,23.5" fill="${c.deep}"/>
+</svg>`;
+        }
+      },
+      {
+        id: 'bravo-4',
+        tag: 'Bravo 4',
+        tier: 'niche',
+        tierLabel: 'Niche / IYKYK',
+        title: 'Akasen Paper Lantern & 16:9 Gate',
+        desc: 'Stylized glowing Japanese red-district chochin paper lantern framed inside widescreen cinema brackets with a play core.',
+        why: 'Evocative Japanese late-night cinema atmosphere ("Akasen") — cultured, distinctive silhouette next to Obsidian and Suwayomi.',
+        baseColors: { bg1: '#18181b', bg2: '#450a0a', fg: '#fff7ed', hi: '#fdba74', mid: '#e11d48', deep: '#09090b', accent: '#f43f5e' },
+        render(uid, c) {
+          return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <defs>
+    <linearGradient id="${uid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${c.bg1}"/>
+      <stop offset="100%" stop-color="${c.bg2}"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="36" height="36" rx="10" fill="url(#${uid})"/>
+  <rect x="15.5" y="6.8" width="9" height="2.6" rx="1" fill="${c.deep}" stroke="${c.hi}" stroke-width="0.9"/>
+  <rect x="16" y="30.6" width="8" height="2.4" rx="1" fill="${c.deep}" stroke="${c.hi}" stroke-width="0.9"/>
+  <rect x="11" y="9.8" width="18" height="20.4" rx="8.5" fill="${c.mid}"/>
+  <line x1="12" y1="14.8" x2="28" y2="14.8" stroke="${c.deep}" stroke-opacity="0.45" stroke-width="1.3"/>
+  <line x1="12" y1="25.2" x2="28" y2="25.2" stroke="${c.deep}" stroke-opacity="0.45" stroke-width="1.3"/>
+  <path d="M7 13 V9.5 A2 2 0 0 1 9 7.5 H12 M33 13 V9.5 A2 2 0 0 0 31 7.5 H28 M7 27 V30.5 A2 2 0 0 0 9 32.5 H12 M33 27 V30.5 A2 2 0 0 1 31 32.5 H28" fill="none" stroke="${c.hi}" stroke-width="1.5" stroke-linecap="round"/>
+  <polygon points="17.8,16.3 24.3,20 17.8,23.7" fill="${c.fg}"/>
+</svg>`;
+        }
+      },
+      {
+        id: 'charlie-1',
+        tag: 'Charlie 1',
+        tier: 'stealth',
+        tierLabel: 'Stealth PhysicsLab',
+        title: 'PhysicsLab Atom w/ Crimson Play Nucleus',
+        desc: 'Cyan scientific orbital rings straight from the PhysicsLab decoy screen, hiding AV Manager\'s rose-crimson Play triangle as the nucleus.',
+        why: 'Dual-meaning camouflage: looks 100% academic on screen share, while only you notice the crimson video Play triangle at the core.',
+        baseColors: { bg1: '#0f172a', bg2: '#0c4a6e', fg: '#ffffff', hi: '#7dd3fc', mid: '#38bdf8', deep: '#082f49', accent: '#f43f5e' },
+        render(uid, c) {
+          return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <defs>
+    <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${c.bg1}"/>
+      <stop offset="100%" stop-color="${c.bg2}"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="36" height="36" rx="10" fill="url(#${uid})"/>
+  <ellipse cx="20" cy="20" rx="13" ry="5.4" transform="rotate(34 20 20)" fill="none" stroke="${c.hi}" stroke-width="1.6"/>
+  <ellipse cx="20" cy="20" rx="13" ry="5.4" transform="rotate(-34 20 20)" fill="none" stroke="${c.mid}" stroke-width="1.6"/>
+  <ellipse cx="20" cy="20" rx="13" ry="5.4" transform="rotate(90 20 20)" fill="none" stroke="${c.hi}" stroke-opacity="0.5" stroke-width="1.3"/>
+  <circle cx="20" cy="20" r="5.3" fill="${c.accent}"/>
+  <polygon points="18.6,17.4 23.1,20 18.6,22.6" fill="${c.fg}"/>
+</svg>`;
+        }
+      },
+      {
+        id: 'charlie-2',
+        tag: 'Charlie 2',
+        tier: 'stealth',
+        tierLabel: 'Stealth PhysicsLab',
+        title: 'Projectile Arc + Secret Censor Strip',
+        desc: 'Dotted ballistic parabola from PhysicsLab\'s kinematics simulator arching cleanly above an understated 4-tile crimson mosaic strip.',
+        why: 'In-joke uniting both halves of AV Manager: the high-school PhysicsLab trajectory curve above a tiny hidden mosaic bar.',
+        baseColors: { bg1: '#0f172a', bg2: '#1e293b', fg: '#e0f2fe', hi: '#38bdf8', mid: '#fb7185', deep: '#020617', accent: '#e11d48' },
+        render(uid, c) {
+          return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <defs>
+    <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${c.bg1}"/>
+      <stop offset="100%" stop-color="${c.bg2}"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="36" height="36" rx="10" fill="url(#${uid})"/>
+  <line x1="8" y1="24.5" x2="32" y2="24.5" stroke="${c.hi}" stroke-opacity="0.35" stroke-width="1.2"/>
+  <path d="M9 23.5 Q 20 6 31 23.5" fill="none" stroke="${c.hi}" stroke-width="2.1" stroke-dasharray="2.5 2.5" stroke-linecap="round"/>
+  <circle cx="20" cy="14.7" r="2.7" fill="${c.fg}"/>
+  <rect x="9" y="27.5" width="4.8" height="4.8" rx="1" fill="${c.mid}" fill-opacity="0.45"/>
+  <rect x="14.7" y="27.5" width="4.8" height="4.8" rx="1" fill="${c.accent}"/>
+  <rect x="20.5" y="27.5" width="4.8" height="4.8" rx="1" fill="${c.fg}" fill-opacity="0.88"/>
+  <rect x="26.2" y="27.5" width="4.8" height="4.8" rx="1" fill="${c.mid}" fill-opacity="0.68"/>
+</svg>`;
+        }
+      }
+    ];
+
+    let activeFilter = 'all';
+    let activePalette = 'signature';
+    let selectedId = 'bravo-1';
+
+    function getColors(concept) {
+      return PALETTES[activePalette].override ?? concept.baseColors;
+    }
+
+    function renderConceptSVG(concept, suffix) {
+      return concept.render(`grad-${concept.id}-${suffix}`, getColors(concept));
+    }
+
+    function updateThemeButtons(current) {
+      document.querySelectorAll('[data-scheme]').forEach((btn) => {
+        btn.setAttribute('aria-pressed', String(btn.dataset.scheme === current));
+      });
+    }
+
+    function initThemeToggle() {
+      const meta = document.querySelector('meta[name="color-scheme"]');
+      updateThemeButtons(meta.content);
+
+      document.querySelectorAll('[data-scheme]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const next = btn.dataset.scheme;
+          meta.content = next;
+          try {
+            if (next === 'light dark') {
+              localStorage.removeItem('av-preview-scheme');
+            } else {
+              localStorage.setItem('av-preview-scheme', next);
+            }
+          } catch (_) {}
+          updateThemeButtons(next);
+        });
+      });
+
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'av-preview-scheme') {
+          const val = e.newValue ?? 'light dark';
+          meta.content = val;
+          updateThemeButtons(val);
+        }
+      });
+    }
+
+    function renderPalettes() {
+      const bar = document.getElementById('palette-bar');
+      bar.innerHTML = Object.entries(PALETTES).map(([key, p]) => `
+        <button class="swatch-btn" type="button" data-palette="${key}" aria-pressed="${String(key === activePalette)}">
+          <span class="swatch-dot" style="background: ${p.dot};"></span>
+          <span>${p.label}</span>
+        </button>
+      `).join('');
+
+      bar.querySelectorAll('[data-palette]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          activePalette = btn.dataset.palette;
+          renderPalettes();
+          renderGrid();
+          syncInspector();
+        });
+      });
+    }
+
+    function syncInspector() {
+      const concept = CONCEPTS.find((c) => c.id === selectedId) ?? CONCEPTS[0];
+      const svgText = renderConceptSVG(concept, 'export');
+      document.getElementById('live-av-icon').innerHTML = renderConceptSVG(concept, 'live');
+      document.getElementById('selected-badge').textContent = `${concept.tag} · ${concept.title}`;
+      document.getElementById('inspector-name').textContent = `${concept.tag} — ${concept.title} (${PALETTES[activePalette].label})`;
+      document.getElementById('inspector-caption').textContent = concept.desc;
+      document.getElementById('svg-source-box').textContent = svgText;
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById('concepts-grid');
+      const items = CONCEPTS.filter((c) => activeFilter === 'all' || c.tier === activeFilter);
+      const pillClass = (tier) => tier === 'explicit' ? 'explicit' : (tier === 'niche' ? 'niche' : 'stealth');
+
+      grid.innerHTML = items.map((c) => {
+        const selected = c.id === selectedId;
+        return `
+          <article class="concept-card ${selected ? 'is-selected' : ''}" data-concept-id="${c.id}">
+            <div class="card-top">
+              <div>
+                <div class="card-tag">${c.tag}</div>
+                <h3 class="card-title">${c.title}</h3>
+              </div>
+              <span class="pill ${pillClass(c.tier)}">${c.tierLabel}</span>
+            </div>
+
+            <div class="preview-stage">
+              <div class="hero-icon-wrap" aria-hidden="true">${renderConceptSVG(c, 'hero')}</div>
+              <div class="size-ladder" aria-label="Rendered sizes">
+                <div class="size-step">
+                  <div class="size-box s38" aria-hidden="true">${renderConceptSVG(c, 's38')}</div>
+                  <span>38px card</span>
+                </div>
+                <div class="size-step">
+                  <div class="size-box s24" aria-hidden="true">${renderConceptSVG(c, 's24')}</div>
+                  <span>24px</span>
+                </div>
+                <div class="size-step">
+                  <div class="size-box s16" aria-hidden="true">${renderConceptSVG(c, 's16')}</div>
+                  <span>16px</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card-desc">
+              <p>${c.desc}</p>
+              <p class="card-why">${c.why}</p>
+            </div>
+
+            <div class="card-actions">
+              <button class="btn ${selected ? 'btn-primary' : ''}" type="button" data-select="${c.id}">
+                ${selected ? 'Previewing on Dashboard' : `Preview ${c.tag}`}
+              </button>
+              <button class="btn" type="button" data-copy="${c.id}">Copy SVG</button>
+            </div>
+          </article>
+        `;
+      }).join('');
+
+      grid.querySelectorAll('[data-select]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          selectedId = btn.dataset.select;
+          renderGrid();
+          syncInspector();
+        });
+      });
+
+      grid.querySelectorAll('[data-copy]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const concept = CONCEPTS.find((c) => c.id === btn.dataset.copy);
+          if (!concept) return;
+          const svg = renderConceptSVG(concept, 'copy');
+          try {
+            await navigator.clipboard.writeText(svg);
+            setStatus(`Copied SVG for ${concept.tag} (${concept.title}).`);
+          } catch (_) {
+            selectedId = concept.id;
+            renderGrid();
+            syncInspector();
+            setStatus(`Selected ${concept.tag} — copy SVG directly from the box above.`);
+          }
+        });
+      });
+    }
+
+    function setStatus(msg) {
+      document.getElementById('status-note').textContent = msg;
+    }
+
+    function initFilters() {
+      document.querySelectorAll('[data-filter]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          activeFilter = btn.dataset.filter;
+          document.querySelectorAll('[data-filter]').forEach((b) => {
+            b.setAttribute('aria-pressed', String(b === btn));
+          });
+          renderGrid();
+        });
+      });
+    }
+
+    function initInspectorActions() {
+      document.getElementById('copy-svg-btn').addEventListener('click', async () => {
+        const text = document.getElementById('svg-source-box').textContent;
+        try {
+          await navigator.clipboard.writeText(text);
+          setStatus('Copied selected SVG markup to clipboard.');
+        } catch (_) {
+          setStatus('Select the SVG markup box to copy manually.');
+        }
+      });
+
+      document.getElementById('download-svg-btn').addEventListener('click', () => {
+        const concept = CONCEPTS.find((c) => c.id === selectedId) ?? CONCEPTS[0];
+        const svg = renderConceptSVG(concept, 'download');
+        const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `av-manager-${concept.id}-${activePalette}.svg`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setStatus(`Downloaded av-manager-${concept.id}-${activePalette}.svg`);
+      });
+    }
+
+    initThemeToggle();
+    renderPalettes();
+    initFilters();
+    initInspectorActions();
+    renderGrid();
+    syncInspector();
+  </script>
+</body>
+</html>

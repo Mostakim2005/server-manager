@@ -77,6 +77,30 @@ const svgAnkiFallback = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40
   <polygon points="20,7 23.6,14.8 32.1,15.8 25.8,21.6 27.5,30 20,25.8 12.5,30 14.2,21.6 7.9,15.8 16.4,14.8" fill="#ffffff" stroke="#bae6fd" stroke-width="1.4" stroke-linejoin="round"/>
 </svg>`
 
+const svgAVManagerReel = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <defs>
+    <linearGradient id="avReelG" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#b91c1c"/>
+      <stop offset="100%" stop-color="#7f1d1d"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="36" height="36" rx="10" fill="url(#avReelG)"/>
+  <rect x="7" y="7" width="26" height="26" rx="4" fill="#270909"/>
+  <g fill="#fecdd3">
+    <rect x="8.8" y="9.2" width="2.5" height="3.2" rx="0.6"/>
+    <rect x="8.8" y="15.2" width="2.5" height="3.2" rx="0.6"/>
+    <rect x="8.8" y="21.2" width="2.5" height="3.2" rx="0.6"/>
+    <rect x="8.8" y="27.2" width="2.5" height="3.2" rx="0.6"/>
+    <rect x="28.7" y="9.2" width="2.5" height="3.2" rx="0.6"/>
+    <rect x="28.7" y="15.2" width="2.5" height="3.2" rx="0.6"/>
+    <rect x="28.7" y="21.2" width="2.5" height="3.2" rx="0.6"/>
+    <rect x="28.7" y="27.2" width="2.5" height="3.2" rx="0.6"/>
+  </g>
+  <circle cx="20" cy="20" r="6.8" fill="#f43f5e"/>
+  <circle cx="20" cy="20" r="7.2" fill="none" stroke="#fff1f2" stroke-width="1.3"/>
+  <polygon points="18.3,16.6 24.1,20 18.3,23.4" fill="#fff1f2"/>
+</svg>`
+
 func resolvePresetSVG(s discovery.ServiceEntry, preferredOnly bool) (ResolvedIcon, bool) {
 	slug := sanitizeSlug(s.ProjectName + " " + s.Name + " " + s.ID)
 	if strings.Contains(slug, "gptmoe3dexplainer") || slug == "regollama" || strings.Contains(slug, "ollama") {
@@ -86,6 +110,8 @@ func resolvePresetSVG(s discovery.ServiceEntry, preferredOnly bool) (ResolvedIco
 		return ResolvedIcon{}, false
 	}
 	switch {
+	case strings.Contains(slug, "avmanager") || strings.Contains(slug, "physicslab"):
+		return newResolvedIcon([]byte(svgAVManagerReel), "image/svg+xml; charset=utf-8", "preset"), true
 	case strings.Contains(slug, "databasemanager"):
 		return newResolvedIcon([]byte(svgDatabaseMinimal), "image/svg+xml; charset=utf-8", "preset"), true
 	case strings.Contains(slug, "doujinmanager"):
