@@ -66,13 +66,14 @@ var skipDirNames = map[string]struct{}{
 }
 
 var (
-	portFlagRegex   = regexp.MustCompile(`(?i)(?:--port|-p|localport|-port)\s*[=\s]?\s*(\d{2,5})`)
-	urlPortRegex    = regexp.MustCompile(`https?://(?:127\.0\.0\.1|localhost|0\.0\.0\.0|%[A-Za-z0-9_]+%):(\d{2,5})`)
-	colonPortRegex  = regexp.MustCompile(`(?m)(?:listen|host|port|findstr)\s*[:=]?\s*:(\d{3,5})\b`)
-	httpURLRegex    = regexp.MustCompile(`https?://(?:127\.0\.0\.1|localhost):\d{2,5}[^\s"'<>]*`)
-	titleEchoRegex  = regexp.MustCompile(`(?im)^\s*(?:title|echo)\s+(.+)$`)
-	commandEchoSkip = regexp.MustCompile(`(?i)^(@?off|=+|\s*\.?\s*|starting\b.*|done\.?)$`)
-	yamlPortRegex   = regexp.MustCompile(`^\s*port\s*:\s*(\d{2,5})\b`)
+	portFlagRegex      = regexp.MustCompile(`(?i)(?:--port|-p|localport|-port)\s*[=\s]?\s*(\d{2,5})`)
+	urlPortRegex       = regexp.MustCompile(`https?://(?:127\.0\.0\.1|localhost|0\.0\.0\.0|%[A-Za-z0-9_]+%):(\d{2,5})`)
+	colonPortRegex     = regexp.MustCompile(`(?m)(?:listen|host|port|findstr)\s*[:=]?\s*:(\d{3,5})\b`)
+	httpURLRegex       = regexp.MustCompile(`https?://(?:127\.0\.0\.1|localhost):\d{2,5}[^\s"'<>]*`)
+	titleEchoRegex     = regexp.MustCompile(`(?im)^\s*(?:title|echo)\s+(.+)$`)
+	commandEchoSkip    = regexp.MustCompile(`(?i)^(@?off|=+|\s*\.?\s*|starting\b.*|done\.?)$`)
+	yamlPortRegex      = regexp.MustCompile(`^\s*port\s*:\s*(\d{2,5})\b`)
+	launcherWordClueRe = regexp.MustCompile(`\b(?:server|start|run)\b`)
 )
 
 // Scan discovers scripts across configured roots, merges registry services and custom entries,
@@ -365,19 +366,28 @@ func isUtilityScript(lowerBase, lowerContent string) bool {
 	}
 	for _, needle := range []string{
 		"bump-version", "build_releases", "verify-release", "fix-encoding",
-		"make_icon", "pack.ps1", "smoke-installer", "update_models", "setup_", "sync-to-st",
+		"make_icon", "pack.ps1", "smoke-installer", "update_models",
+		"setup_", "setup-", "allow-", "allow_", "firewall",
+		"enable-", "enable_", "disable-", "disable_",
+		"usb-sync", "usb_sync", "adb-", "adb_",
+		"install-", "configure-", "sync-to-", "uninstall-", "check-",
 	} {
 		if strings.Contains(lowerBase, needle) {
 			return true
 		}
 	}
-	// Keep explicit server/gui launchers visible; treat remaining scripts without server clues as utility.
-	for _, clue := range []string{"uvicorn", "vite", "electron", "server", "start", "run", "cliproxy", "http://", "--gui", "presentationframework"} {
-		if strings.Contains(lowerBase, clue) || strings.Contains(lowerContent, clue) {
+	// Keep explicit server/gui launchers visible; use word boundaries for generic verbs in file bodies.
+	for _, baseClue := range []string{"uvicorn", "vite", "electron", "server", "start", "run", "cliproxy", "--gui"} {
+		if strings.Contains(lowerBase, baseClue) {
 			return false
 		}
 	}
-	return true
+	for _, contentClue := range []string{"uvicorn", "vite", "electron", "cliproxy", "http://", "--gui", "presentationframework"} {
+		if strings.Contains(lowerContent, contentClue) {
+			return false
+		}
+	}
+	return !launcherWordClueRe.MatchString(lowerContent)
 }
 
 func detectRuntime(lowerContent, ext string) string {
@@ -601,6 +611,14 @@ func buildRegistryFallbacks(reg *config.EcosystemRegistry, existingPorts map[int
 	return out
 }
 
+func setRegistrySlugKeys[T any](dst map[string]T, rawKey string, val T) {
+	for _, slug := range []string{slugify(prettyKey(rawKey)), slugify(rawKey)} {
+		if slug != "" {
+			dst[slug] = val
+		}
+	}
+}
+
 func extractRegistryURLMap(reg *config.EcosystemRegistry) map[string]string {
 	res := make(map[string]string)
 	if reg == nil {
@@ -608,13 +626,12 @@ func extractRegistryURLMap(reg *config.EcosystemRegistry) map[string]string {
 	}
 	readMap := func(m map[string]map[string]any) {
 		for k, meta := range m {
-			slug := slugify(prettyKey(k))
 			u, _ := meta["webUrl"].(string)
 			if u == "" {
 				u, _ = meta["url"].(string)
 			}
 			if u != "" {
-				res[slug] = u
+				setRegistrySlugKeys(res, k, u)
 			}
 		}
 	}

@@ -12,7 +12,7 @@
 * **User Intention (Non-Negotiable):** Surface real web GUI and local service launchers immediately without drowning the user in `node_modules`, `gradlew.bat`, or `local-ci.ps1` files, and never hang crawling huge media trees.
 * **Visual / UI Behavior:** Dashboard grid/list shows clean service cards with category chips, detected ports (including YAML-configured ports like `SillyTavern`), live status (`Running`, `Running (External)`, `Stopped`), clicking `Start & Web UI ↗` on stopped services auto-starts them before opening the UI, and a `Show Utility/Build Scripts` filter toggle.
 * **Code Anchors (Grep Targets):**
-  * `internal/discovery/scanner.go` -> `Scan`, `parseScriptEntry`, `buildRegistryFallbacks`, `extractYAMLConfigPorts`, `detectMissingNodeDeps`
+  * `internal/discovery/scanner.go` -> `Scan`, `parseScriptEntry`, `isUtilityScript`, `buildRegistryFallbacks`, `extractYAMLConfigPorts`, `detectMissingNodeDeps`
   * `internal/discovery/grouping.go` -> `applyGroupingAndDeduplication`, `markDuplicateWrappers`, `isElectronWrapperPair`
   * `internal/discovery/launcher_windows.go` -> `findInstalledLauncher`
 

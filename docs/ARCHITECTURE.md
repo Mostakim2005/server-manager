@@ -68,10 +68,10 @@ flowchart LR
 ```
 
 * **Code Anchors (Grep Targets):**
-  * `internal/discovery/scanner.go` -> `Scan`, `extractYAMLConfigPorts`, `detectMissingNodeDeps`
+  * `internal/discovery/scanner.go` -> `Scan`, `isUtilityScript`, `setRegistrySlugKeys`, `extractYAMLConfigPorts`, `detectMissingNodeDeps`
   * `internal/discovery/grouping.go` -> `applyGroupingAndDeduplication`, `markDuplicateWrappers`, `isElectronWrapperPair`
   * `internal/discovery/launcher_windows.go` -> `findInstalledLauncher`
-  * `internal/discovery/conflicts.go` -> `DetectConflicts`
+  * `internal/discovery/conflicts.go` -> `DetectConflicts`, `extractRegistryPortMap`
 
 ### [SUBSYSTEM: Service-Icon-Resolver-And-Cache] | Aliases: icon resolver, favicon cache, exe icon, monogram, service-icons
 > **1-Line Summary:** Resolves per-service icons from user overrides, targeted local project assets, Windows `.exe` resources, and asynchronous loopback Web UI favicon probes, serving them safely on `/service-icons/<id>` with monogram fallbacks.

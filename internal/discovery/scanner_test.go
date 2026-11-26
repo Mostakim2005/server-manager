@@ -155,3 +155,70 @@ func TestSmartProjectGroupingAndWrapperDeduplication(t *testing.T) {
 		t.Fatalf("expected AutoGroupKey preserved so user can rejoin later")
 	}
 }
+
+func TestUtilityHelpersAndCamelCaseRegistryMatching(t *testing.T) {
+	tmp := t.TempDir()
+	avDir := filepath.Join(tmp, "AV Manager")
+	stDir := filepath.Join(tmp, "SillyTavern")
+	miscDir := filepath.Join(tmp, "Misc App")
+	for _, d := range []string{avDir, stDir, miscDir} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	_ = os.WriteFile(filepath.Join(avDir, "run.bat"), []byte("@echo off\npython -m uvicorn app.main:app --port 8000\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(avDir, "allow-lan-firewall.bat"), []byte("@echo off\npowershell -Command \"Start-Process powershell -ArgumentList '-Command New-NetFirewallRule -LocalPort 8000'\"\necho restart AV Manager\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(avDir, "enable-usb-sync.bat"), []byte("@echo off\necho Use http://127.0.0.1:8000\nadb reverse tcp:8000 tcp:8000\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(stDir, "run-st.bat"), []byte("@echo off\nnode server.js\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(stDir, "config.yaml"), []byte("listen: false\nport: 8005\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(miscDir, "notes-check.bat"), []byte("@echo off\necho Service not running; please restart manually.\n"), 0o600)
+
+	paths := config.DiscoverPaths(t.TempDir())
+	cfg := config.DefaultConfig(paths)
+	cfg.ScanRoots = []config.ScanRoot{{ID: "tmp", Label: "Tmp", Path: tmp, Enabled: true, MaxDepth: 3}}
+	reg := &config.EcosystemRegistry{
+		Apps: map[string]map[string]any{
+			"avManager":   {"port": float64(8000)},
+			"sillyTavern": {"port": float64(8005)},
+		},
+	}
+
+	entries := Scan(paths, cfg, reg)
+	byID := make(map[string]ServiceEntry, len(entries))
+	for _, e := range entries {
+		byID[e.ID] = e
+	}
+
+	if !byID["av-manager-allow-lan-firewall"].IsUtility || !byID["av-manager-enable-usb-sync"].IsUtility {
+		t.Fatalf("expected firewall/usb helper scripts to be classified as utilities: fw=%v usb=%v",
+			byID["av-manager-allow-lan-firewall"].IsUtility, byID["av-manager-enable-usb-sync"].IsUtility)
+	}
+	if !byID["misc-app-notes-check"].IsUtility {
+		t.Fatalf("expected english substring 'running'/'restart' not to misclassify helper script as server")
+	}
+	for _, id := range []string{"av-manager-run", "sillytavern-run-st"} {
+		for _, c := range byID[id].Conflicts {
+			if c.Code == "DUPLICATE_PORT" || c.Code == "REGISTRY_PORT_MISMATCH" {
+				t.Fatalf("unexpected conflict on %s: %+v", id, c)
+			}
+		}
+	}
+
+	// If SillyTavern YAML drifts to 8000 while camelCase sillyTavern expects 8005, both duplicate & mismatch should fire.
+	_ = os.WriteFile(filepath.Join(stDir, "config.yaml"), []byte("port: 8000\n"), 0o600)
+	entriesDrift := Scan(paths, cfg, reg)
+	var sawMismatch bool
+	for _, e := range entriesDrift {
+		if e.ID == "sillytavern-run-st" {
+			for _, c := range e.Conflicts {
+				if c.Code == "REGISTRY_PORT_MISMATCH" {
+					sawMismatch = true
+				}
+			}
+		}
+	}
+	if !sawMismatch {
+		t.Fatalf("expected camelCase sillyTavern registry key to match SillyTavern project and flag port mismatch")
+	}
+}

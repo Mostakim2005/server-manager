@@ -101,9 +101,8 @@ func extractRegistryPortMap(reg *config.EcosystemRegistry) map[string]int {
 	}
 	readMap := func(m map[string]map[string]any) {
 		for k, meta := range m {
-			slug := slugify(prettyKey(k))
 			if pFloat, ok := meta["port"].(float64); ok && pFloat > 0 {
-				res[slug] = int(pFloat)
+				setRegistrySlugKeys(res, k, int(pFloat))
 				continue
 			}
 			u, _ := meta["webUrl"].(string)
@@ -111,7 +110,7 @@ func extractRegistryPortMap(reg *config.EcosystemRegistry) map[string]int {
 				u, _ = meta["url"].(string)
 			}
 			if pts := extractPorts(u); len(pts) > 0 {
-				res[slug] = pts[0]
+				setRegistrySlugKeys(res, k, pts[0])
 			}
 		}
 	}
