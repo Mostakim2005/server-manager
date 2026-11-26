@@ -222,3 +222,75 @@ func TestUtilityHelpersAndCamelCaseRegistryMatching(t *testing.T) {
 		t.Fatalf("expected camelCase sillyTavern registry key to match SillyTavern project and flag port mismatch")
 	}
 }
+
+func TestMultiEndpointRegistryPortsAndIdempotentConflicts(t *testing.T) {
+	tmp := t.TempDir()
+	dtDir := filepath.Join(tmp, "DeepTutor")
+	dtScripts := filepath.Join(dtDir, "scripts")
+	dmDir := filepath.Join(tmp, "Doujin Manager")
+	for _, d := range []string{dtDir, dtScripts, dmDir} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	_ = os.WriteFile(filepath.Join(dtDir, "start.bat"), []byte("@echo off\npython -m deeptutor_cli.main start\nREM http://127.0.0.1:8001 http://localhost:3782\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(dtScripts, "start_backend.bat"), []byte("@echo off\necho http://localhost:8001\npython -m deeptutor.api.run_server\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(dtScripts, "start_frontend.bat"), []byte("@echo off\nnpm run dev -- -p 3782\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(dtScripts, "start_bad.bat"), []byte("@echo off\npython -m uvicorn api:app --port 9099\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(dmDir, "run-bad.bat"), []byte("@echo off\npython -m uvicorn dm:app --port 4567\n"), 0o600)
+
+	paths := config.DiscoverPaths(t.TempDir())
+	cfg := config.DefaultConfig(paths)
+	cfg.ScanRoots = []config.ScanRoot{{ID: "tmp", Label: "Tmp", Path: tmp, Enabled: true, MaxDepth: 3}}
+	reg := &config.EcosystemRegistry{
+		Apps: map[string]map[string]any{
+			"deepTutor": {
+				"url":    "http://127.0.0.1:8001",
+				"webUrl": "http://127.0.0.1:3782",
+			},
+			"doujinManager": {
+				"url":         "http://127.0.0.1:8780",
+				"suwayomiUrl": "http://127.0.0.1:4567",
+			},
+		},
+		Services: map[string]map[string]any{
+			"deepTutor": {
+				"url":    "http://127.0.0.1:8001",
+				"webUrl": "http://127.0.0.1:3782",
+			},
+		},
+	}
+
+	entries := Scan(paths, cfg, reg)
+	// Calling DetectConflicts again (as server.Daemon.Rescan does) must not duplicate warnings.
+	DetectConflicts(entries, reg)
+
+	byID := make(map[string]ServiceEntry, len(entries))
+	for _, e := range entries {
+		byID[e.ID] = e
+	}
+
+	for _, okID := range []string{"deeptutor-start", "deeptutor-start-backend", "deeptutor-start-frontend"} {
+		for _, c := range byID[okID].Conflicts {
+			if c.Code == "REGISTRY_PORT_MISMATCH" {
+				t.Fatalf("unexpected registry mismatch on %s: %+v", okID, c)
+			}
+		}
+	}
+
+	checkSingleMismatch := func(id string) {
+		t.Helper()
+		var count int
+		for _, c := range byID[id].Conflicts {
+			if c.Code == "REGISTRY_PORT_MISMATCH" {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Fatalf("expected exactly 1 REGISTRY_PORT_MISMATCH on %s, got %d (%+v)", id, count, byID[id].Conflicts)
+		}
+	}
+	checkSingleMismatch("deeptutor-start-bad")
+	checkSingleMismatch("doujin-manager-run-bad")
+}

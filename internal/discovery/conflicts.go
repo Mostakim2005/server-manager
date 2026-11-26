@@ -11,11 +11,12 @@ import (
 // mismatches against ecosystem-registry.json, and 0.0.0.0 LAN bindings (Charlie 3).
 func DetectConflicts(entries []ServiceEntry, reg *config.EcosystemRegistry) []ConflictWarning {
 	portOwners := make(map[int][]int) // port -> indices in entries
-	for idx, e := range entries {
-		if e.IsUtility {
+	for idx := range entries {
+		entries[idx].Conflicts = nil
+		if entries[idx].IsUtility {
 			continue
 		}
-		for _, pt := range e.Ports {
+		for _, pt := range entries[idx].Ports {
 			portOwners[pt] = append(portOwners[pt], idx)
 		}
 	}
@@ -68,19 +69,23 @@ func DetectConflicts(entries []ServiceEntry, reg *config.EcosystemRegistry) []Co
 			})
 		}
 		projSlug := slugify(e.ProjectName)
-		if expected, ok := registryPorts[projSlug]; ok && len(e.Ports) > 0 {
+		if expectedPorts := registryPorts[projSlug]; len(expectedPorts) > 0 && len(e.Ports) > 0 {
 			matched := false
 			for _, pt := range e.Ports {
-				if pt == expected {
+				if containsPort(expectedPorts, pt) {
 					matched = true
 					break
 				}
 			}
 			if !matched {
+				msg := fmt.Sprintf("Script port %v differs from ecosystem-registry.json expected port :%d.", e.Ports, expectedPorts[0])
+				if len(expectedPorts) > 1 {
+					msg = fmt.Sprintf("Script port %v differs from ecosystem-registry.json expected ports [%s].", e.Ports, formatExpectedPorts(expectedPorts))
+				}
 				w := ConflictWarning{
 					Severity: "warning",
 					Code:     "REGISTRY_PORT_MISMATCH",
-					Message:  fmt.Sprintf("Script port %v differs from ecosystem-registry.json expected port :%d.", e.Ports, expected),
+					Message:  msg,
 				}
 				e.Conflicts = append(e.Conflicts, w)
 				global = append(global, ConflictWarning{
@@ -94,27 +99,79 @@ func DetectConflicts(entries []ServiceEntry, reg *config.EcosystemRegistry) []Co
 	return global
 }
 
-func extractRegistryPortMap(reg *config.EcosystemRegistry) map[string]int {
-	res := make(map[string]int)
+func extractRegistryPortMap(reg *config.EcosystemRegistry) map[string][]int {
+	res := make(map[string][]int)
 	if reg == nil {
 		return res
 	}
 	readMap := func(m map[string]map[string]any) {
 		for k, meta := range m {
-			if pFloat, ok := meta["port"].(float64); ok && pFloat > 0 {
-				setRegistrySlugKeys(res, k, int(pFloat))
-				continue
-			}
-			u, _ := meta["webUrl"].(string)
-			if u == "" {
-				u, _ = meta["url"].(string)
-			}
-			if pts := extractPorts(u); len(pts) > 0 {
-				setRegistrySlugKeys(res, k, pts[0])
+			pts := extractOwnRegistryPorts(meta)
+			if len(pts) > 0 {
+				appendRegistrySlugPorts(res, k, pts)
 			}
 		}
 	}
-	readMap(reg.Services)
 	readMap(reg.Apps)
+	readMap(reg.Services)
 	return res
+}
+
+func extractOwnRegistryPorts(meta map[string]any) []int {
+	var out []int
+	addPort := func(p int) {
+		if p > 0 && p <= 65535 && !containsPort(out, p) {
+			out = append(out, p)
+		}
+	}
+	for _, numKey := range []string{"port"} {
+		if pFloat, ok := meta[numKey].(float64); ok && pFloat > 0 {
+			addPort(int(pFloat))
+		}
+	}
+	for _, urlKey := range []string{"webUrl", "url", "mcp"} {
+		if u, ok := meta[urlKey].(string); ok && u != "" {
+			for _, pt := range extractPorts(u) {
+				addPort(pt)
+			}
+		}
+	}
+	for _, auxKey := range []string{"visualEditorPort", "lanQrPort"} {
+		if pFloat, ok := meta[auxKey].(float64); ok && pFloat > 0 {
+			addPort(int(pFloat))
+		}
+	}
+	return out
+}
+
+func appendRegistrySlugPorts(dst map[string][]int, rawKey string, ports []int) {
+	for _, slug := range []string{slugify(prettyKey(rawKey)), slugify(rawKey)} {
+		if slug == "" {
+			continue
+		}
+		cur := dst[slug]
+		for _, pt := range ports {
+			if !containsPort(cur, pt) {
+				cur = append(cur, pt)
+			}
+		}
+		dst[slug] = cur
+	}
+}
+
+func containsPort(ports []int, target int) bool {
+	for _, p := range ports {
+		if p == target {
+			return true
+		}
+	}
+	return false
+}
+
+func formatExpectedPorts(ports []int) string {
+	parts := make([]string, len(ports))
+	for i, p := range ports {
+		parts[i] = fmt.Sprintf(":%d", p)
+	}
+	return strings.Join(parts, ", ")
 }

@@ -185,8 +185,8 @@ func Scan(paths config.Paths, cfg config.AppConfig, reg *config.EcosystemRegistr
 		s.ID = ensureUniqueID(s.ID, usedIDs)
 		projSlug := slugify(s.ProjectName)
 		if len(s.Ports) == 0 {
-			if rp, ok := regPortMap[projSlug]; ok && rp > 0 {
-				s.Ports = []int{rp}
+			if rps := regPortMap[projSlug]; len(rps) > 0 && rps[0] > 0 {
+				s.Ports = []int{rps[0]}
 			}
 		}
 		if s.WebURL == "" {

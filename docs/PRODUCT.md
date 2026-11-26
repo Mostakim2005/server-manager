@@ -51,8 +51,8 @@
   * `internal/server/server.go` -> `handleAIAnalyzeProject`, `handleCustomCatalog`
 
 ### [FEATURE: Port-Conflict-And-Registry-Audit] | Aliases: port conflict, duplicate port, ecosystem-registry, charlie 3
-> **1-Line Summary:** Detects duplicate TCP ports across scripts and flags mismatches against `ECOSYSTEM_INTEGRATION_CONTRACT.md` / `ecosystem-registry.json` and `0.0.0.0` LAN exposure.
-* **User Intention (Non-Negotiable):** Prevent confusing port collisions (e.g., two services trying to bind `:8000`) and keep ports aligned with the ecosystem registry.
+> **1-Line Summary:** Detects duplicate TCP ports across scripts and flags mismatches against `ECOSYSTEM_INTEGRATION_CONTRACT.md` / `ecosystem-registry.json` (across all declared app/service endpoints such as `url` + `webUrl`) and `0.0.0.0` LAN exposure.
+* **User Intention (Non-Negotiable):** Prevent confusing port collisions (e.g., two services trying to bind `:8000`) and keep ports aligned with the ecosystem registry without false warnings on split backend/frontend launchers like `DeepTutor` (`:8001` API + `:3782` Web UI).
 * **Visual / UI Behavior:** Amber/red warning badges on conflicting cards plus a compact `Conflicts & Registry` summary banner/drawer.
 * **Code Anchors (Grep Targets):**
   * `internal/discovery/conflicts.go` -> `DetectConflicts`

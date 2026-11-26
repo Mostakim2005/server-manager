@@ -44,7 +44,7 @@ flowchart TB
 
 ### [SUBSYSTEM: Script-Discovery-And-Conflict-Engine] | Aliases: scanner, parser, port conflicts, registry mismatch
 > **1-Line Summary:** Walks bounded scan roots, merges `ecosystem-registry.json`, pairs `start`/`stop` scripts, parses commands/ports statically, and flags port collisions.
-* **Plain-English Walkthrough:** Discovery iterates over user-configured roots up to depth 3 while immediately pruning `node_modules`, `.venv`, `.git`, and heavy media trees. Each `.bat`/`.cmd`/`.ps1` file is parsed for commands, ports, and URLs, grouped with any sibling `stop*` script in the same project, merged with custom catalog entries and `ecosystem-registry.json`, and scanned for duplicate ports or registry mismatches.
+* **Plain-English Walkthrough:** Discovery iterates over user-configured roots up to depth 3 while immediately pruning `node_modules`, `.venv`, `.git`, and heavy media trees. Each `.bat`/`.cmd`/`.ps1` file is parsed for commands, ports, and URLs, grouped with any sibling `stop*` script in the same project, merged with custom catalog entries and `ecosystem-registry.json` (collecting each app's own declared endpoint ports from `port`, `webUrl`, `url`, `mcp`, `visualEditorPort`, and `lanQrPort`), and scanned for duplicate ports or registry mismatches.
 
 ```mermaid
 flowchart LR
@@ -71,7 +71,7 @@ flowchart LR
   * `internal/discovery/scanner.go` -> `Scan`, `isUtilityScript`, `setRegistrySlugKeys`, `extractYAMLConfigPorts`, `detectMissingNodeDeps`
   * `internal/discovery/grouping.go` -> `applyGroupingAndDeduplication`, `markDuplicateWrappers`, `isElectronWrapperPair`
   * `internal/discovery/launcher_windows.go` -> `findInstalledLauncher`
-  * `internal/discovery/conflicts.go` -> `DetectConflicts`, `extractRegistryPortMap`
+  * `internal/discovery/conflicts.go` -> `DetectConflicts`, `extractRegistryPortMap`, `extractOwnRegistryPorts`
 
 ### [SUBSYSTEM: Service-Icon-Resolver-And-Cache] | Aliases: icon resolver, favicon cache, exe icon, monogram, service-icons
 > **1-Line Summary:** Resolves per-service icons from user overrides, targeted local project assets, Windows `.exe` resources, and asynchronous loopback Web UI favicon probes, serving them safely on `/service-icons/<id>` with monogram fallbacks.
